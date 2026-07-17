@@ -214,6 +214,7 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 /* screenshot preview */
 .qa-screenshot{margin-top:14px}
 .qa-ss-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--mut);margin-bottom:6px}
 /* hotspot beacons */
 .ss-wrapper{position:relative;display:block}
 .hs-spot{position:absolute;transform:translate(-50%,-50%);z-index:5;cursor:default}
@@ -234,7 +235,6 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .hs-legend-num{min-width:20px;height:20px;border-radius:50%;background:var(--acc);flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;
   margin-top:1px}
-  color:var(--mut);margin-bottom:6px}
 .qa-ss-img{width:100%;border-radius:8px;border:1px solid var(--brd);display:block}
 /* generic demo utilities */
 .dm-row{display:grid;gap:6px;padding:5px 8px;border-radius:4px;font-size:11px;align-items:center;margin-bottom:3px;background:#1a1d27}
