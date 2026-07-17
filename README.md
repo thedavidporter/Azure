@@ -206,7 +206,6 @@ Stalest machines (1000+ days, still assigned): `ecae-prd-87-0`, `ecae-prd-83-0`,
 **Status: Fixed and working** — all 4 Wyze locks active as of 2026-07-06.
 
 - HA 2026.7.1 on Raspberry Pi 5 64-bit
-- SSH: `ssh ha` → `root@192.168.5.250 -p 22222`
 - wyzeapi v0.1.38 (HACS, SecKatie)
 
 ### Root Cause
