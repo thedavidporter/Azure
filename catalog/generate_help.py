@@ -235,6 +235,13 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .hs-legend-num{min-width:20px;height:20px;border-radius:50%;background:var(--acc);flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;
   margin-top:1px}
+/* numbered answer steps that match screenshot beacons */
+.hs-steps{list-style:none;padding:0;counter-reset:hs-step;display:flex;flex-direction:column;gap:8px;margin:6px 0 10px}
+.hs-steps>li{counter-increment:hs-step;padding-left:32px;position:relative;line-height:1.5;min-height:22px}
+.hs-steps>li::before{content:counter(hs-step);position:absolute;left:0;top:1px;
+  width:22px;height:22px;border-radius:50%;background:var(--acc);
+  font-size:10px;font-weight:800;color:#fff;line-height:22px;text-align:center;
+  box-shadow:0 2px 8px rgba(108,142,255,.4)}
 .qa-ss-img{width:100%;border-radius:8px;border:1px solid var(--brd);display:block}
 /* generic demo utilities */
 .dm-row{display:grid;gap:6px;padding:5px 8px;border-radius:4px;font-size:11px;align-items:center;margin-bottom:3px;background:#1a1d27}
@@ -489,7 +496,7 @@ def D(did):
     if not img:
         return ''
     title  = _REPORT_TITLES.get(img, '')
-    spots  = _HOTSPOTS.get(img, [])
+    spots  = _HOTSPOTS.get(did, _HOTSPOTS.get(img, []))
     if not spots:
         return (
             '<div class="qa-screenshot">'
@@ -638,12 +645,12 @@ def build_html(generated):
     q_and_a += qa(
         "What is the definition (code) of a view in Synapse?",
         """<p>Open the <strong>Synapse Metadata Report</strong> for the desired environment.</p>
-<ol>
-  <li>Click the <strong>Views</strong> stat card.</li>
-  <li>Browse the list or use the search box to find the view by name.</li>
-  <li>Click on the view row — a detail panel expands below it.</li>
+<ol class="hs-steps">
+  <li>Click the <strong>Views</strong> stat card at the top of the report.</li>
+  <li>Use the search box to find the view by name, or scroll the list.</li>
+  <li>Click the view row — a detail panel expands below it.</li>
   <li>Click <strong>Show / Hide Definition</strong> to reveal the full T-SQL code.</li>
-  <li>Below the code you will also see a <em>plain-English explanation</em> of what the view does, written automatically from the SQL logic.</li>
+  <li>A plain-English explanation of what the view does is shown automatically below the code.</li>
 </ol>""",
         "analyst"
     )
@@ -651,9 +658,9 @@ def build_html(generated):
     q_and_a += qa(
         "What is the definition (code) of a stored procedure in Synapse?",
         """<p>Open the <strong>Synapse Metadata Report</strong> (SMR) for the desired environment.</p>
-<ol>
-  <li>Click the <strong>Procs / Functions</strong> stat card.</li>
-  <li>Search for the procedure by name, or scroll the list.</li>
+<ol class="hs-steps">
+  <li>Click the <strong>Procs / Functions</strong> stat card at the top of the report.</li>
+  <li>Search for the procedure by name in the search box, or scroll the list.</li>
   <li>Click the row to expand the detail panel and view the full T-SQL definition.</li>
 </ol>
 <p class="tip">The same approach applies to user-defined functions — they appear in the same Procs / Functions tab.</p>""",

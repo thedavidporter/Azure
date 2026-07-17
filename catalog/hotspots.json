@@ -1,9 +1,28 @@
 {
-  "ss_synapse_dev.png": [
-    {"x": 20, "y": 12, "label": "Stat cards — click any number to jump to that category (schemas, objects, columns, etc.)"},
-    {"x": 29, "y": 22, "label": "All Objects tab — searchable, sortable list of every table, view, and proc"},
-    {"x": 38, "y": 22, "label": "Columns tab — find any column name or data type across all schemas at once"},
-    {"x": 6,  "y": 55, "label": "Schema sidebar — click any schema name to filter the entire view to that schema"},
-    {"x": 25, "y": 47, "label": "Schema card — click to open tables, DDL, column details, and row counts"}
+  "procdef": [
+    {"x": 79, "y": 14, "label": "Procs / Functions stat card — click to jump directly to the procedures list"},
+    {"x": 83, "y": 26, "label": "Procs / Functions tab — the procedure list and search box live here"},
+    {"x": 55, "y": 60, "label": "Content area — search by name, then click any row to expand and see the full T-SQL definition"}
+  ],
+  "viewdef": [
+    {"x": 66, "y": 14, "label": "Views stat card — click to jump directly to the views list"},
+    {"x": 72, "y": 26, "label": "Views tab — contains the searchable list of all views"},
+    {"x": 55, "y": 55, "label": "Content area — search for the view name, then click the row to expand it"},
+    {"x": 55, "y": 70, "label": "Detail panel — click Show / Hide Definition for the T-SQL, and see the plain-English explanation below it"}
+  ],
+  "tabledef": [
+    {"x": 44, "y": 14, "label": "Tables stat card — click to jump to the tables list"},
+    {"x": 14, "y": 55, "label": "Schema sidebar — type a table name here to narrow the list instantly"},
+    {"x": 55, "y": 55, "label": "Content area — click a table to open its detail panel with columns, types, DDL, and row count"}
+  ],
+  "colsearch": [
+    {"x": 36, "y": 26, "label": "Columns tab — search all columns across every schema at once"},
+    {"x": 55, "y": 42, "label": "Column search box — type any partial column name or data type"},
+    {"x": 55, "y": 62, "label": "Results — shows every table that contains a matching column, with schema and data type"}
+  ],
+  "schemas": [
+    {"x": 19, "y": 14, "label": "Schemas stat card — click to see all schemas in this environment"},
+    {"x": 14, "y": 55, "label": "Schema sidebar — click any schema name to filter the entire report to that schema"},
+    {"x": 55, "y": 55, "label": "Schema cards — each card shows table / view / proc counts; click to expand"}
   ]
 }
