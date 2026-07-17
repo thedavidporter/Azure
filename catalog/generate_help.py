@@ -1464,8 +1464,6 @@ def build_html(generated):
   </div>
   <div id="fb-pane-log" style="display:none">
     <div style="display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--brd);flex-wrap:wrap">
-      <button class="fb-log-btn" onclick="fbExportJSON()">Export JSON</button>
-      <button class="fb-log-btn" onclick="fbExportCSV()">Export CSV</button>
       <button class="fb-log-btn" onclick="fbToggleDeleted()" id="fb-show-del">Show Deleted</button>
       <button class="fb-log-btn" style="margin-left:auto" onclick="fbLoadAndRender()">Refresh</button>
     </div>
@@ -1637,24 +1635,6 @@ function fbToggleDeleted(){{
   btn.textContent = fbShowDeleted ? 'Hide Deleted' : 'Show Deleted';
   btn.style.color = fbShowDeleted ? 'var(--acc)' : '';
   fbRenderLog();
-}}
-function fbExportJSON(){{
-  if(!fbEntries.length){{ alert('No entries to export.'); return; }}
-  const blob = new Blob([JSON.stringify(fbEntries, null, 2)], {{type:'application/json'}});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'idoh_feedback_' + new Date().toISOString().slice(0,10) + '.json';
-  a.click();
-}}
-function fbExportCSV(){{
-  if(!fbEntries.length){{ alert('No entries to export.'); return; }}
-  const rows = [['ID','Name','Date/Time','Priority','Comment','Page','Deleted','DeletedAt'],
-    ...fbEntries.map(e => [e.id,e.name,e.dt,e.priority,e.comment,e.page||'',e.deleted?'Yes':'No',e.deletedAt||''].map(v => '"'+String(v||'').replace(/"/g,'""')+'"'))];
-  const blob = new Blob([rows.map(r=>r.join(',')).join('\\n')], {{type:'text/csv'}});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'idoh_feedback_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
 }}
 </script>
 
