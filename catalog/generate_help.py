@@ -11,6 +11,9 @@ from datetime import datetime
 OUTPUT_PATH    = "/home/thedavidporter/help.html"
 CHANGELOG_PATH     = "/home/thedavidporter/changelog.json"
 SPINNER_NAMES_PATH = "/home/thedavidporter/spinner_names.json"
+HOTSPOTS_PATH      = "/home/thedavidporter/hotspots.json"
+
+_HOTSPOTS = {}   # populated at the start of build_html()
 
 CSS = """
 :root{
@@ -211,6 +214,26 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 /* screenshot preview */
 .qa-screenshot{margin-top:14px}
 .qa-ss-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+/* hotspot beacons */
+.ss-wrapper{position:relative;display:block}
+.hs-spot{position:absolute;transform:translate(-50%,-50%);z-index:5;cursor:default}
+.hs-dot{width:22px;height:22px;border-radius:50%;background:var(--acc);display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:800;color:#fff;position:relative;z-index:2;
+  box-shadow:0 2px 8px rgba(108,142,255,.5)}
+.hs-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--acc);
+  animation:hs-pulse 2s ease-out var(--hs-delay,0s) infinite;z-index:-1}
+@keyframes hs-pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.8);opacity:0}}
+.hs-tip{position:absolute;background:#1a2333;color:var(--txt);font-size:11px;padding:6px 10px;
+  border-radius:6px;border:1px solid var(--brd);white-space:normal;width:200px;line-height:1.4;
+  text-align:left;opacity:0;pointer-events:none;transition:opacity .15s;
+  bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.hs-spot:hover .hs-tip{opacity:1}
+.hs-legend{list-style:none;padding:8px 2px 0;margin:0;display:flex;flex-direction:column;gap:5px}
+.hs-legend li{font-size:11px;color:var(--mut);display:flex;gap:8px;align-items:flex-start;line-height:1.4}
+.hs-legend-num{min-width:20px;height:20px;border-radius:50%;background:var(--acc);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;
+  margin-top:1px}
   color:var(--mut);margin-bottom:6px}
 .qa-ss-img{width:100%;border-radius:8px;border:1px solid var(--brd);display:block}
 /* generic demo utilities */
@@ -461,15 +484,41 @@ _demo_inits = []  # kept for build_html compatibility (no longer used)
 
 
 def D(did):
-    """Return a screenshot preview block for the given demo ID."""
+    """Return a screenshot preview block, with animated hotspot beacons if defined."""
     img = _SCREENSHOT_MAP.get(did, '')
     if not img:
         return ''
-    title = _REPORT_TITLES.get(img, '')
+    title  = _REPORT_TITLES.get(img, '')
+    spots  = _HOTSPOTS.get(img, [])
+    if not spots:
+        return (
+            '<div class="qa-screenshot">'
+            f'<div class="qa-ss-label">&#128247; {title}</div>'
+            f'<img src="screenshots/{img}" alt="{title}" class="qa-ss-img">'
+            '</div>'
+        )
+    # build beacon overlays
+    beacons = ''
+    for i, s in enumerate(spots, 1):
+        delay = f'{(i-1)*0.4:.1f}s'
+        beacons += (
+            f'<div class="hs-spot" style="left:{s["x"]}%;top:{s["y"]}%;--hs-delay:{delay}">'
+            f'<div class="hs-dot">{i}</div>'
+            f'<div class="hs-tip">{s["label"]}</div>'
+            f'</div>'
+        )
+    legend_items = ''.join(
+        f'<li><span class="hs-legend-num">{i}</span>{s["label"]}</li>'
+        for i, s in enumerate(spots, 1)
+    )
     return (
         '<div class="qa-screenshot">'
-        f'<div class="qa-ss-label">&#128247; {title}</div>'
+        f'<div class="qa-ss-label">&#128247; {title} &nbsp;<span style="color:var(--mut);font-weight:400;font-style:italic">hover the numbered markers to learn more</span></div>'
+        f'<div class="ss-wrapper">'
         f'<img src="screenshots/{img}" alt="{title}" class="qa-ss-img">'
+        f'{beacons}'
+        f'</div>'
+        f'<ol class="hs-legend">{legend_items}</ol>'
         '</div>'
     )
 
@@ -1084,6 +1133,14 @@ def build_html(generated):
 <p class="tip">Containers that are growing rapidly but not being read by any active pipeline may be accumulating data without a retention policy. Cross-reference with the ADF report to check whether those paths are referenced by any active datasets.</p>""",
         "mgmt"
     )
+
+    # load hotspots
+    global _HOTSPOTS
+    try:
+        with open(HOTSPOTS_PATH, encoding="utf-8") as _f:
+            _HOTSPOTS = json.load(_f)
+    except Exception:
+        _HOTSPOTS = {}
 
     # read spinner names
     try:

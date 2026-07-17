@@ -1,0 +1,9 @@
+{
+  "ss_synapse_dev.png": [
+    {"x": 20, "y": 12, "label": "Stat cards — click any number to jump to that category (schemas, objects, columns, etc.)"},
+    {"x": 29, "y": 22, "label": "All Objects tab — searchable, sortable list of every table, view, and proc"},
+    {"x": 38, "y": 22, "label": "Columns tab — find any column name or data type across all schemas at once"},
+    {"x": 6,  "y": 55, "label": "Schema sidebar — click any schema name to filter the entire view to that schema"},
+    {"x": 25, "y": 47, "label": "Schema card — click to open tables, DDL, column details, and row counts"}
+  ]
+}
