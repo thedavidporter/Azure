@@ -37,8 +37,6 @@ entries.insert(0, json.loads('''$NEW_ENTRY'''))
 p.write_text(json.dumps(entries, indent=2, ensure_ascii=False) + "\n")
 print(f"  Changelog updated ({len(entries)} entries).")
 PYEOF
-    echo "  Regenerating help page..."
-    python3 "$HOME/generate_help.py"
   fi
 fi
 
@@ -54,6 +52,11 @@ if [ ! -x "$DBKS_CLI" ]; then
 fi
 
 DBKS_TOKEN=$(cat "$DBKS_TOKEN_FILE")
+
+echo ""
+echo "Regenerating HTML reports..."
+python3 "$HOME/generate_metadata_index.py" && echo "  index.html"
+python3 "$HOME/generate_help.py"           && echo "  help.html"
 
 echo ""
 echo "Syncing screenshots to bundle..."
