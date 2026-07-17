@@ -109,6 +109,7 @@ if [ -d "$AZURE_REPO/.git" ]; then
   cp "$HOME/generate_help.py"           "$AZURE_REPO/catalog/"
   cp "$HOME/deploy_databricks_app.sh"   "$AZURE_REPO/catalog/"
   cp "$HOME/changelog.json"             "$AZURE_REPO/catalog/"
+  cp "$HOME/spinner_names.json"         "$AZURE_REPO/catalog/"
   cp "$HOME/PROJECTS_AND_IDEAS.md"      "$AZURE_REPO/"
   CHANGED=$(git -C "$AZURE_REPO" diff --name-only HEAD; git -C "$AZURE_REPO" ls-files --others --exclude-standard)
   if [[ -z "$CHANGED" ]]; then
@@ -119,6 +120,7 @@ if [ -d "$AZURE_REPO/.git" ]; then
       catalog/generate_help.py \
       catalog/deploy_databricks_app.sh \
       catalog/changelog.json \
+      catalog/spinner_names.json \
       PROJECTS_AND_IDEAS.md
     git -C "$AZURE_REPO" commit -m "$(printf 'Sync catalog — %s\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>' "$(date '+%Y-%m-%d %H:%M')")"
     if git -C "$AZURE_REPO" push origin main 2>&1; then

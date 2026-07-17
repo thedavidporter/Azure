@@ -9,7 +9,8 @@ import os
 from datetime import datetime
 
 OUTPUT_PATH    = "/home/thedavidporter/help.html"
-CHANGELOG_PATH = "/home/thedavidporter/changelog.json"
+CHANGELOG_PATH     = "/home/thedavidporter/changelog.json"
+SPINNER_NAMES_PATH = "/home/thedavidporter/spinner_names.json"
 
 CSS = """
 :root{
@@ -1084,6 +1085,14 @@ def build_html(generated):
         "mgmt"
     )
 
+    # read spinner names
+    try:
+        with open(SPINNER_NAMES_PATH, encoding="utf-8") as _f:
+            _spinner_names = json.load(_f)
+    except Exception:
+        _spinner_names = ["David", "Billy", "Nick"]
+    spinner_names_json = json.dumps(_spinner_names)
+
     # read changelog
     try:
         with open(CHANGELOG_PATH, encoding="utf-8") as _f:
@@ -1501,7 +1510,9 @@ function fbSetPri(p){{
   }});
 }}
 
-const FB_WORDS = ['Thinking…','Pondering…','Querying…','Fetching…','Analyzing…','Processing…','Computing…','Deliberating…','Ruminating…','Synthesizing…'];
+const _FB_NAMES = {spinner_names_json};
+function _fbShuffle(a){{for(let i=a.length-1;i>0;i--){{const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}return a;}}
+const FB_WORDS = _fbShuffle(_FB_NAMES.slice()).map(n => n + '…');
 let _fbWordTimer = null;
 function fbShowSpinner(el){{
   let i = 0;
