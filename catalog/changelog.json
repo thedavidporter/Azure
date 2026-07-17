@@ -1,0 +1,32 @@
+[
+  {
+    "date": "2026-07-17",
+    "time": "1:00 PM",
+    "name": "Shared Feedback Persistence",
+    "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page."
+  },
+  {
+    "date": "2026-07-15",
+    "time": "2:00 PM",
+    "name": "Select Table Columns",
+    "description": "There is a new tab called Select which will show you a simple query statement of all the columns in the corresponding table."
+  },
+  {
+    "date": "2026-07-15",
+    "time": "2:30 PM",
+    "name": "Correct Datatypes on Synapse Tables",
+    "description": "Remove the length field for INT and BIGINT on column descriptions."
+  },
+  {
+    "date": "2026-07-15",
+    "time": "2:30 PM",
+    "name": "Synapse DDL Improvemnt",
+    "description": "Include missing distribution and indexing of table description."
+  },
+  {
+    "date": "2026-07-15",
+    "time": "2:345 PM",
+    "name": "ADF Activity Performance",
+    "description": "Created a new tab inside of the ADF Metadata Report show the performance of activities including start, end, duration, I/O."
+  }
+]

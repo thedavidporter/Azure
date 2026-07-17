@@ -259,6 +259,12 @@ body{background:var(--bg);color:var(--txt);font:14px/1.6 'Segoe UI',system-ui,sa
   padding:8px 16px;cursor:pointer;color:var(--acc);font-size:12px;font-weight:700;
   font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.4);transition:border-color .15s}
 .fb-toggle:hover{border-color:var(--acc)}
+.fb-toggle::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 10px);left:0;
+  background:#1a2333;color:var(--txt);font-size:11px;font-weight:400;font-style:italic;
+  padding:7px 11px;border-radius:7px;border:1px solid var(--brd);
+  white-space:normal;width:200px;line-height:1.5;text-align:left;
+  opacity:0;pointer-events:none;transition:opacity .18s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.fb-toggle:hover::after{opacity:1}
 .fb-panel{position:fixed;bottom:68px;left:24px;z-index:1001;width:320px;
   background:var(--sur);border:1px solid var(--brd);border-radius:12px;
   box-shadow:0 4px 24px rgba(0,0,0,.5);display:none;flex-direction:column;overflow:hidden}
@@ -323,6 +329,11 @@ body{background:var(--bg);color:var(--txt);font:14px/1.6 'Segoe UI',system-ui,sa
 .fb-log-btn{font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;
   border:1px solid var(--brd);background:none;color:var(--mut);cursor:pointer;font-family:inherit}
 .fb-log-btn:hover{border-color:var(--acc);color:var(--acc)}
+.fb-spinner{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 0}
+.fb-spinner-ring{width:28px;height:28px;border:3px solid var(--brd);border-top-color:var(--acc);border-radius:50%;animation:fb-spin .7s linear infinite}
+@keyframes fb-spin{to{transform:rotate(360deg)}}
+.fb-spinner-word{font-size:11px;color:var(--mut);font-style:italic;min-width:110px;text-align:center}
+.fb-btn-spin{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:fb-spin .6s linear infinite;vertical-align:middle;margin-right:4px}
 """
 
 
@@ -429,7 +440,7 @@ def build_html(generated, running_since=None, step=None, total=None):
 </div>
 
 <!-- Feedback widget -->
-<button class="fb-toggle" onclick="fbToggle()">💬 Feedback / Suggestions</button>
+<button class="fb-toggle" onclick="fbToggle()" data-tooltip="…you can also find recent updates to this app in the Changelog">💬 Feedback / Suggestions</button>
 <div class="fb-panel" id="fb-panel">
   <div class="fb-panel-hdr" style="display:flex;align-items:center;justify-content:space-between">
     <span>Feedback &amp; Suggestions</span>
@@ -470,15 +481,16 @@ def build_html(generated, running_since=None, step=None, total=None):
       <button class="fb-log-btn" onclick="fbExportJSON()">Export JSON</button>
       <button class="fb-log-btn" onclick="fbExportCSV()">Export CSV</button>
       <button class="fb-log-btn" onclick="fbToggleDeleted()" id="fb-show-del">Show Deleted</button>
-      <button class="fb-log-btn" style="color:var(--red);margin-left:auto" onclick="fbClear()">Clear All</button>
+      <button class="fb-log-btn" style="margin-left:auto" onclick="fbLoadAndRender()">Refresh</button>
     </div>
     <div class="fb-log" id="fb-log"></div>
   </div>
 </div>
 
 <script>
-const FB_KEY = 'idoh_feedback_v1';
 let fbPri = 'Low';
+let fbShowDeleted = false;
+let fbEntries = [];
 
 function fbToggle(){{
   const p = document.getElementById('fb-panel');
@@ -494,7 +506,7 @@ function fbShowTab(t){{
   document.getElementById('fb-pane-log').style.display = t==='log' ? '' : 'none';
   document.getElementById('fb-tab-new').classList.toggle('active', t==='new');
   document.getElementById('fb-tab-log').classList.toggle('active', t==='log');
-  if(t==='log') fbRenderLog();
+  if(t==='log') fbLoadAndRender();
 }}
 function fbSetPri(p){{
   fbPri = p;
@@ -504,22 +516,68 @@ function fbSetPri(p){{
     if(v===p) btn.classList.add('active-'+v.toLowerCase());
   }});
 }}
-let fbShowDeleted = false;
 
-function fbSave(entries){{
-  localStorage.setItem(FB_KEY, JSON.stringify(entries));
+const FB_WORDS = ['Thinking…','Pondering…','Querying…','Fetching…','Analyzing…','Processing…','Computing…','Deliberating…','Ruminating…','Synthesizing…'];
+let _fbWordTimer = null;
+function fbShowSpinner(el){{
+  let i = 0;
+  el.innerHTML = '<div class="fb-spinner"><div class="fb-spinner-ring"></div><div class="fb-spinner-word">' + FB_WORDS[0] + '</div></div>';
+  const wordEl = el.querySelector('.fb-spinner-word');
+  _fbWordTimer = setInterval(() => {{ i = (i+1) % FB_WORDS.length; wordEl.textContent = FB_WORDS[i]; }}, 600);
 }}
-function fbLoad(){{
-  return JSON.parse(localStorage.getItem(FB_KEY)||'[]');
+function fbClearSpinner(){{
+  if(_fbWordTimer) {{ clearInterval(_fbWordTimer); _fbWordTimer = null; }}
 }}
-function fbDownloadJSON(entries){{
-  const blob = new Blob([JSON.stringify(entries, null, 2)], {{type:'application/json'}});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'idoh_feedback_' + new Date().toISOString().slice(0,10) + '.json';
-  a.click();
+
+async function fbLoadAndRender(){{
+  const el = document.getElementById('fb-log');
+  fbClearSpinner();
+  fbShowSpinner(el);
+  try {{
+    const r = await fetch('/api/feedback');
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    fbEntries = await r.json();
+  }} catch(e) {{
+    fbClearSpinner();
+    el.innerHTML = '<p style="color:var(--red);font-size:12px">Could not load feedback: ' + e.message + '</p>';
+    return;
+  }}
+  fbClearSpinner();
+  fbRenderLog();
 }}
-function fbSubmit(){{
+
+function fbRenderLog(){{
+  const el = document.getElementById('fb-log');
+  const visible = fbShowDeleted ? fbEntries : fbEntries.filter(e => !e.deleted);
+  if(!visible.length){{
+    el.innerHTML='<p style="color:var(--mut);font-size:12px">' +
+      (fbEntries.length && !fbShowDeleted ? 'All entries have been deleted. Click "Show Deleted" to view them.' : 'No submissions yet.') +
+      '</p>';
+    return;
+  }}
+  const PRI_COLOR = {{Low:'var(--grn)',Medium:'var(--yel)',High:'#fb923c',Critical:'var(--red)'}};
+  el.innerHTML = visible.map((e) => {{
+    const isDeleted = e.deleted;
+    const pageLabel = e.page === 'help' ? '&nbsp;·&nbsp;<span style="color:var(--mut);font-size:10px">Help</span>' : '';
+    return `<div class="fb-log-entry" style="${{isDeleted ? 'opacity:.45;border-style:dashed' : ''}}">
+      <div class="fb-log-meta">
+        <b style="color:var(--txt)">${{e.name}}</b> &nbsp;·&nbsp; ${{e.dt}}
+        ${{e.priority ? `&nbsp;·&nbsp;<span style="color:${{PRI_COLOR[e.priority]||'var(--mut)'}};font-weight:700">${{e.priority}}</span>` : ''}}
+        ${{pageLabel}}
+        ${{isDeleted ? `&nbsp;·&nbsp;<span style="color:var(--red);font-size:10px">deleted ${{e.deletedAt||''}}</span>` : ''}}
+      </div>
+      <div class="fb-log-comment">${{e.comment}}</div>
+      <div class="fb-log-actions">
+        ${{isDeleted
+          ? `<button class="fb-log-btn" onclick="fbRestore(${{e.id}})">Restore</button>`
+          : `<button class="fb-log-btn" style="color:var(--red)" onclick="fbDelete(${{e.id}})">Delete</button>`
+        }}
+      </div>
+    </div>`;
+  }}).join('');
+}}
+
+async function fbSubmit(){{
   const nameEl    = document.getElementById('fb-name');
   const commentEl = document.getElementById('fb-comment');
   const name      = nameEl.value.trim();
@@ -533,62 +591,60 @@ function fbSubmit(){{
   if(!fbPri)   errors.push('Please select a Priority.');
   if(!comment) flag(commentEl, 'Comment / Suggestion is required.');
   if(errors.length){{ alert(errors.join('\\n')); return; }}
-  const entries = fbLoad();
-  const entry = {{id: Date.now(), name, dt, priority: fbPri, comment, deleted: false, deletedAt: null}};
-  entries.unshift(entry);
-  fbSave(entries);
-  fbDownloadJSON(entries);
-  document.getElementById('fb-name').value = '';
-  document.getElementById('fb-comment').value = '';
-  fbSetPri('Low');
-  fbShowTab('log');
-}}
-function fbRenderLog(){{
-  const entries = fbLoad();
-  const el = document.getElementById('fb-log');
-  const visible = fbShowDeleted ? entries : entries.filter(e => !e.deleted);
-  if(!visible.length){{
-    el.innerHTML='<p style="color:var(--mut);font-size:12px">' +
-      (entries.length && !fbShowDeleted ? 'All entries have been deleted. Click "Show Deleted" to view them.' : 'No submissions yet.') +
-      '</p>';
-    return;
+  const btn = document.querySelector('.fb-submit');
+  btn.disabled = true; btn.innerHTML = '<span class="fb-btn-spin"></span>Saving…';
+  try {{
+    const r = await fetch('/api/feedback', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{name, dt, priority: fbPri, comment, page: 'index'}})
+    }});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const entry = await r.json();
+    fbEntries.unshift(entry);
+    nameEl.value = '';
+    commentEl.value = '';
+    fbSetPri('Low');
+    fbShowTab('log');
+  }} catch(e) {{
+    alert('Failed to save: ' + e.message);
+  }} finally {{
+    btn.disabled = false; btn.innerHTML = 'Submit';
   }}
-  const PRI_COLOR = {{Low:'var(--grn)',Medium:'var(--yel)',High:'#fb923c',Critical:'var(--red)'}};
-  el.innerHTML = visible.map((e) => {{
-    const idx = entries.indexOf(e);
-    const isDeleted = e.deleted;
-    return `<div class="fb-log-entry" style="${{isDeleted ? 'opacity:.45;border-style:dashed' : ''}}">
-      <div class="fb-log-meta">
-        <b style="color:var(--txt)">${{e.name}}</b> &nbsp;·&nbsp; ${{e.dt}}
-        ${{e.priority ? `&nbsp;·&nbsp;<span style="color:${{PRI_COLOR[e.priority]||'var(--mut)'}};font-weight:700">${{e.priority}}</span>` : ''}}
-        ${{isDeleted ? `&nbsp;·&nbsp;<span style="color:var(--red);font-size:10px">deleted ${{e.deletedAt||''}}</span>` : ''}}
-      </div>
-      <div class="fb-log-comment">${{e.comment}}</div>
-      <div class="fb-log-actions">
-        ${{isDeleted
-          ? `<button class="fb-log-btn" onclick="fbRestore(${{idx}})">Restore</button>`
-          : `<button class="fb-log-btn" style="color:var(--red)" onclick="fbDelete(${{idx}})">Delete</button>`
-        }}
-      </div>
-    </div>`;
-  }}).join('');
 }}
-function fbDelete(i){{
-  const entries = fbLoad();
-  entries[i].deleted   = true;
-  entries[i].deletedAt = new Date().toLocaleString();
-  fbSave(entries);
-  fbDownloadJSON(entries);
-  fbRenderLog();
+
+async function fbDelete(entryId){{
+  const idx = fbEntries.findIndex(e => e.id === entryId);
+  if(idx < 0) return;
+  try {{
+    const r = await fetch('/api/feedback/' + entryId, {{
+      method: 'PATCH',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{deleted: true}})
+    }});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    fbEntries[idx].deleted = true;
+    fbEntries[idx].deletedAt = new Date().toLocaleString();
+    fbRenderLog();
+  }} catch(e) {{ alert('Failed to delete: ' + e.message); }}
 }}
-function fbRestore(i){{
-  const entries = fbLoad();
-  entries[i].deleted   = false;
-  entries[i].deletedAt = null;
-  fbSave(entries);
-  fbDownloadJSON(entries);
-  fbRenderLog();
+
+async function fbRestore(entryId){{
+  const idx = fbEntries.findIndex(e => e.id === entryId);
+  if(idx < 0) return;
+  try {{
+    const r = await fetch('/api/feedback/' + entryId, {{
+      method: 'PATCH',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{deleted: false}})
+    }});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    fbEntries[idx].deleted = false;
+    fbEntries[idx].deletedAt = null;
+    fbRenderLog();
+  }} catch(e) {{ alert('Failed to restore: ' + e.message); }}
 }}
+
 function fbToggleDeleted(){{
   fbShowDeleted = !fbShowDeleted;
   const btn = document.getElementById('fb-show-del');
@@ -597,26 +653,22 @@ function fbToggleDeleted(){{
   fbRenderLog();
 }}
 function fbExportJSON(){{
-  const entries = fbLoad();
-  if(!entries.length){{ alert('No entries to export.'); return; }}
-  fbDownloadJSON(entries);
+  if(!fbEntries.length){{ alert('No entries to export.'); return; }}
+  const blob = new Blob([JSON.stringify(fbEntries, null, 2)], {{type:'application/json'}});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'idoh_feedback_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
 }}
 function fbExportCSV(){{
-  const entries = fbLoad();
-  if(!entries.length){{ alert('No entries to export.'); return; }}
-  const rows = [['ID','Name','Date/Time','Priority','Comment','Deleted','DeletedAt'],
-    ...entries.map(e => [e.id,e.name,e.dt,e.priority,e.comment,e.deleted?'Yes':'No',e.deletedAt||''].map(v => '"'+String(v||'').replace(/"/g,'""')+'"'))];
+  if(!fbEntries.length){{ alert('No entries to export.'); return; }}
+  const rows = [['ID','Name','Date/Time','Priority','Comment','Page','Deleted','DeletedAt'],
+    ...fbEntries.map(e => [e.id,e.name,e.dt,e.priority,e.comment,e.page||'',e.deleted?'Yes':'No',e.deletedAt||''].map(v => '"'+String(v||'').replace(/"/g,'""')+'"'))];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\\n')], {{type:'text/csv'}});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'idoh_feedback_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
-}}
-function fbClear(){{
-  if(confirm('This will permanently remove all feedback entries including deleted ones.\\nAre you sure?')){{
-    localStorage.removeItem(FB_KEY);
-    fbRenderLog();
-  }}
 }}
 </script>
 
