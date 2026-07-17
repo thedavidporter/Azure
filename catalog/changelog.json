@@ -1,6 +1,12 @@
 [
   {
     "date": "2026-07-17",
+    "time": "2:23 PM",
+    "name": "Timestamp Color Coding",
+    "description": "Each report is now colored coded green, yellow and red to indicate how fresh the report is as reflected on the main IDOH Metadata Marketplace page."
+  },
+  {
+    "date": "2026-07-17",
     "time": "1:00 PM",
     "name": "Shared Feedback Persistence",
     "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page."

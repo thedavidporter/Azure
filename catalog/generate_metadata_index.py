@@ -527,12 +527,28 @@ function fbClearSpinner(){{
   if(_fbWordTimer) {{ clearInterval(_fbWordTimer); _fbWordTimer = null; }}
 }}
 
+async function fbFetch(url, opts){{
+  const RETRIES = 3, DELAY = 4000;
+  for(let i = 0; i < RETRIES; i++){{
+    try {{ return await fetch(url, opts); }}
+    catch(e){{
+      if(i < RETRIES - 1 && e.message === 'Failed to fetch'){{
+        await new Promise(res => setTimeout(res, DELAY));
+      }} else {{ throw e; }}
+    }}
+  }}
+}}
+
 async function fbLoadAndRender(){{
   const el = document.getElementById('fb-log');
   fbClearSpinner();
   fbShowSpinner(el);
   try {{
-    const r = await fetch('/api/feedback');
+    const wordEl = el.querySelector('.fb-spinner-word');
+    const r = await fbFetch('/api/feedback').catch(e => {{
+      if(wordEl) wordEl.textContent = 'Waking up…';
+      throw e;
+    }});
     if(!r.ok) throw new Error('HTTP ' + r.status);
     fbEntries = await r.json();
   }} catch(e) {{
@@ -592,11 +608,17 @@ async function fbSubmit(){{
   const btn = document.querySelector('.fb-submit');
   btn.disabled = true; btn.innerHTML = '<span class="fb-btn-spin"></span>Saving…';
   try {{
-    const r = await fetch('/api/feedback', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{name, dt, priority: fbPri, comment, page: 'index'}})
-    }});
+    const payload = JSON.stringify({{name, dt, priority: fbPri, comment, page: 'index'}});
+    let r;
+    try {{
+      r = await fetch('/api/feedback', {{method:'POST',headers:{{'Content-Type':'application/json'}},body:payload}});
+    }} catch(e) {{
+      if(e.message === 'Failed to fetch'){{
+        btn.innerHTML = '<span class="fb-btn-spin"></span>Waking up…';
+        await new Promise(res => setTimeout(res, 4000));
+        r = await fetch('/api/feedback', {{method:'POST',headers:{{'Content-Type':'application/json'}},body:payload}});
+      }} else {{ throw e; }}
+    }}
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const entry = await r.json();
     fbEntries.unshift(entry);
