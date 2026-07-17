@@ -5,6 +5,12 @@
     "name": "Shared Feedback Persistence",
     "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page."
   },
+    {
+    "date": "2026-07-16",
+    "time": "12:00 PM",
+    "name": "Alignment of Help Cards on the Index page",
+    "description": "The cards on the index page are now grouped in 3 columns to appear more cohesive and less wasted space and scrolling."
+  },
   {
     "date": "2026-07-15",
     "time": "2:00 PM",
@@ -21,7 +27,7 @@
     "date": "2026-07-15",
     "time": "2:30 PM",
     "name": "Synapse DDL Improvemnt",
-    "description": "Include missing distribution and indexing of table description."
+    "description": "Included missing distribution and indexing of table descriptions."
   },
   {
     "date": "2026-07-15",
