@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Azure DevOps Metadata Report
@@ -1658,11 +1659,13 @@ def main():
     print(f"  Environments  : {len(data['environments'])}")
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()

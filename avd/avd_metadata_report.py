@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Azure Virtual Desktop (AVD) Session Host Inventory Report
@@ -698,12 +699,14 @@ def main():
     print(f"  {len(hpools)} host pools  |  {len(machines)} session hosts  |  "
           f"{active} active (≤30d)  |  {stale} stale (90d+)")
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated: index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated: index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 
 
 if __name__ == "__main__":

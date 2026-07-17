@@ -132,6 +132,26 @@ JOIN sys.dm_pdw_nodes_db_partition_stats nps
 GROUP BY s.name, t.name
 """
 
+DIST_SQL = """
+SELECT s.name AS schema_name, t.name AS table_name,
+       tdp.distribution_policy_desc,
+       c.name AS distribution_column
+FROM sys.tables t
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+JOIN sys.pdw_table_distribution_properties tdp ON tdp.object_id = t.object_id
+LEFT JOIN sys.pdw_column_distribution_properties cdp
+    ON cdp.object_id = t.object_id AND cdp.distribution_ordinal = 1
+LEFT JOIN sys.columns c ON c.object_id = t.object_id AND c.column_id = cdp.column_id
+"""
+
+INDEX_SQL = """
+SELECT s.name AS schema_name, t.name AS table_name,
+       i.type_desc AS index_type
+FROM sys.tables t
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+JOIN sys.indexes i ON i.object_id = t.object_id AND i.index_id IN (0, 1)
+"""
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def esc(s):
@@ -233,13 +253,34 @@ tr.highlighted td{background:#1e2d4a!important;outline:2px solid var(--acc);outl
 .enf-n{background:#3a1e1e;color:#f87171;font-size:10px;padding:1px 5px;border-radius:3px}
 
 /* schema overview grid */
-.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:9px;margin-bottom:18px}
-.sc2{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:11px 13px;cursor:pointer}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:9px;margin-bottom:18px;align-items:start}
+.sc2{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:11px 13px}
 .sc2:hover{border-color:var(--acc)}
-.sc2 h3{font-size:12px;color:var(--acc);margin-bottom:6px;
+.sc2 h3{font-size:12px;color:var(--acc);margin-bottom:6px;cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc2 h3:hover{text-decoration:underline}
 .sc2 .ct{display:flex;gap:10px;font-size:11px}
 .sc2 .ct span{color:var(--mut)} .sc2 .ct strong{color:var(--txt)}
+.schema-narrative-btn{margin-top:8px;padding-top:7px;border-top:1px solid var(--brd)}
+.schema-narrative-btn button{background:none;border:none;color:var(--acc);font-size:11px;
+  cursor:pointer;padding:0;user-select:none}
+.schema-narrative-btn button:hover{text-decoration:underline}
+/* schema narrative modal */
+.sn-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;
+  display:none;align-items:center;justify-content:center}
+.sn-overlay.open{display:flex}
+.sn-dialog{background:var(--sur);border:1px solid var(--brd);border-radius:12px;
+  width:90vw;max-width:860px;max-height:88vh;display:flex;flex-direction:column;
+  box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.sn-dialog-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px 14px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.sn-dialog-hdr h2{font-size:15px;font-weight:700;color:var(--txt);margin:0}
+.sn-dialog-hdr small{color:var(--mut);font-size:11px;margin-left:10px;font-weight:400}
+.sn-dialog-close{background:none;border:none;color:var(--mut);font-size:20px;
+  cursor:pointer;line-height:1;padding:2px 6px;border-radius:4px}
+.sn-dialog-close:hover{color:var(--txt);background:var(--sur2)}
+.sn-dialog-body{overflow-y:auto;padding:22px 26px;flex:1;
+  white-space:pre-wrap;font-size:13px;line-height:1.75;color:var(--txt)}
 
 /* proc cards */
 .pc{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:13px;margin-bottom:9px}
@@ -411,6 +452,14 @@ for(const c of COL_DATA){
   COL_MAP[key].push({ord:c[2], name:c[3], type:c[4], len:c[5], null:c[6], def:c[7], desc:c[8]||''});
 }
 
+// ── distribution + index map ──────────────────────────────────────────────────
+// {schema||table: {policy, col, index}}
+const DIST_MAP = __DIST_MAP__;
+
+// ── schema narratives map ─────────────────────────────────────────────────────
+// {schema_name: narrative_text}
+const SCHEMA_NAR_MAP = __SCHEMA_NAR_MAP__;
+
 // ── columns tab: render-on-demand with infinite scroll ───────────────────────
 const COL_PAGE = 200;   // rows per batch
 let colFiltered  = [];  // current working dataset (full or filtered)
@@ -492,12 +541,29 @@ function hlSQL(code){
     .replace(KW,  m => `<span class="kw">${m}</span>`);
 }
 
+// ── build SELECT statement for a table from COL_MAP ─────────────────────────
+function buildSelect(schema, name, cols){
+  if(!cols||!cols.length) return '-- No column metadata available';
+  const colLines = cols.map((c, i) =>
+    (i === 0 ? 'SELECT ' : '       ') + c.name + (i < cols.length - 1 ? ',' : '')
+  );
+  return colLines.join('\n') + '\nFROM ' + schema + '.' + name + ';';
+}
+
 // ── build DDL for a table from COL_MAP ───────────────────────────────────────
+// Types that have implicit fixed length in Synapse — do not append (n)
+const NO_LEN_TYPES = new Set([
+  'INT','BIGINT','TINYINT','SMALLINT','BIT',
+  'FLOAT','REAL','DATE','DATETIME','DATETIME2',
+  'SMALLDATETIME','DATETIMEOFFSET','UNIQUEIDENTIFIER',
+  'MONEY','SMALLMONEY'
+]);
+
 function buildDDL(schema, name, cols){
   if(!cols||!cols.length) return '-- No column metadata available';
   const lines = cols.map(c => {
     let t = c.type.toUpperCase();
-    if(c.len && c.len!=='' && c.len!=='None' && c.len!=='null'){
+    if(!NO_LEN_TYPES.has(t) && c.len && c.len!=='' && c.len!=='None' && c.len!=='null'){
       t += '(' + (c.len==='-1'?'MAX':c.len) + ')';
     }
     let line = '    [' + c.name + '] ' + t;
@@ -506,8 +572,24 @@ function buildDDL(schema, name, cols){
     line += c.null==='YES' ? ' NULL' : ' NOT NULL';
     return line;
   });
+
+  const dist = DIST_MAP[schema + '||' + name];
+  let withClause = '';
+  if(dist){
+    let distPart = dist.policy === 'HASH' && dist.col
+      ? 'DISTRIBUTION = HASH([' + dist.col + '])'
+      : 'DISTRIBUTION = ' + (dist.policy || 'ROUND_ROBIN');
+    let idxType = (dist.index || '').toUpperCase();
+    let idxPart = idxType === 'CLUSTERED COLUMNSTORE' ? 'CLUSTERED COLUMNSTORE INDEX'
+                : idxType === 'HEAP'                  ? 'HEAP'
+                : idxType ? idxType : '';
+    withClause = '\nWITH (\n    ' + distPart
+               + (idxPart ? ',\n    ' + idxPart : '')
+               + '\n)';
+  }
+
   return 'CREATE TABLE [' + schema + '].[' + name + '] (\n'
-       + lines.join(',\n') + '\n);\nGO';
+       + lines.join(',\n') + '\n)' + withClause + ';\nGO';
 }
 
 // ── object detail modal ───────────────────────────────────────────────────────
@@ -620,6 +702,18 @@ function openDetail(key, el){
     mtabDDL.style.display = 'none';
   }
 
+  // ── Select tab ──
+  const selBody  = document.getElementById('modal-select-body');
+  const mtabSel  = document.getElementById('mtab-select');
+  if(isTable && cols.length){
+    const sel = buildSelect(schema, name, cols);
+    selBody.innerHTML = '<div class="modal-ddl"><div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)" title="Copy to clipboard"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="copy-lbl">Copy</span></button><pre>' + hlSQL(sel) + '</pre></div></div>';
+    mtabSel.style.display = '';
+  } else {
+    selBody.innerHTML = '<p class="modal-empty">Select statements are only available for tables.</p>';
+    mtabSel.style.display = 'none';
+  }
+
   // ── show correct default tab ──
   const defaultTab = cols.length ? 'cols' : 'ddl';
   showModalTab(defaultTab);
@@ -636,12 +730,23 @@ function closeModal(){
   document.getElementById('obj-modal').style.display = 'none';
 }
 
+function openSchemaNarrative(schema){
+  document.getElementById('sn-title').textContent = schema + ' — Schema Overview';
+  document.getElementById('sn-body').textContent = SCHEMA_NAR_MAP[schema] || '';
+  document.getElementById('sn-overlay').classList.add('open');
+}
+
+function closeSchemaNarrative(){
+  document.getElementById('sn-overlay').classList.remove('open');
+}
+
 function showModalTab(tab){
   document.querySelectorAll('.mtab').forEach(t => t.classList.remove('active'));
   const active = document.getElementById('mtab-' + tab);
   if(active) active.classList.add('active');
-  document.getElementById('modal-cols-body').style.display = tab==='cols' ? '' : 'none';
-  document.getElementById('modal-ddl-body').style.display  = tab==='ddl'  ? '' : 'none';
+  document.getElementById('modal-cols-body').style.display    = tab==='cols'   ? '' : 'none';
+  document.getElementById('modal-ddl-body').style.display     = tab==='ddl'    ? '' : 'none';
+  document.getElementById('modal-select-body').style.display  = tab==='select' ? '' : 'none';
 }
 
 // close on overlay click or Escape
@@ -649,13 +754,14 @@ document.getElementById('obj-modal').addEventListener('click', e => {
   if(e.target === document.getElementById('obj-modal')) closeModal();
 });
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') closeModal();
+  if(e.key === 'Escape'){ closeModal(); closeSchemaNarrative(); }
 });
 """
 
 # ── HTML builder ───────────────────────────────────────────────────────────────
 
-def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated):
+def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated,
+               distributions=None, indexes=None):
     rc_map = {(r['schema_name'], r['table_name']): r['row_count'] for r in row_counts}
 
     type_counts = {}
@@ -687,6 +793,7 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
     proc_descriptions   = _load_desc("proc_descriptions.json")
     table_descriptions  = _load_desc("table_descriptions.json")
     column_descriptions = _load_desc("column_descriptions.json")
+    schema_narratives   = _load_desc("schema_narratives_dev.json")
 
     # ── object metadata map (type, created, modified, row_count) ───────────────
     obj_meta = {}
@@ -703,6 +810,17 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
 
     def_map_json  = json.dumps(def_map,  ensure_ascii=False, separators=(',', ':'))
     obj_meta_json = json.dumps(obj_meta, ensure_ascii=False, separators=(',', ':'))
+
+    # ── distribution + index map ───────────────────────────────────────────────
+    dist_map = {}
+    for d in (distributions or []):
+        k = f"{d['schema_name']}||{d['table_name']}"
+        dist_map[k] = {'policy': d['distribution_policy_desc'] or '', 'col': d['distribution_column'] or ''}
+    for i in (indexes or []):
+        k = f"{i['schema_name']}||{i['table_name']}"
+        if k in dist_map:
+            dist_map[k]['index'] = i['index_type'] or ''
+    dist_map_json = json.dumps(dist_map, ensure_ascii=False, separators=(',', ':'))
 
     # ── sidebar ────────────────────────────────────────────────────────────────
     obs_by_schema = {}
@@ -742,14 +860,26 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
         elif t == 'VIEW': sch_counts[s][1] += 1
         else:             sch_counts[s][2] += 1
 
+    def _schema_card(s, c):
+        narrative = schema_narratives.get(s, '')
+        narrative_html = (
+            f'<div class="schema-narrative-btn">'
+            f'<button onclick="openSchemaNarrative(\'{js_esc(s)}\')">'
+            f'Schema Overview &#x2197;</button></div>'
+            if narrative else ''
+        )
+        return (
+            f'<div class="sc2" title="Click schema name to filter objects">'
+            f'<h3 onclick="filterBySchema(\'{js_esc(s)}\')">{esc(s)}</h3>'
+            f'<div class="ct">'
+            f'<span><strong>{c[0]}</strong> tables</span>'
+            f'<span><strong>{c[1]}</strong> views</span>'
+            f'<span><strong>{c[2]}</strong> procs</span>'
+            f'</div>{narrative_html}</div>'
+        )
+
     cards = ''.join(
-        f'<div class="sc2" onclick="filterBySchema(\'{js_esc(s)}\')" title="Click to filter objects">'
-        f'<h3>{esc(s)}</h3>'
-        f'<div class="ct">'
-        f'<span><strong>{c[0]}</strong> tables</span>'
-        f'<span><strong>{c[1]}</strong> views</span>'
-        f'<span><strong>{c[2]}</strong> procs</span>'
-        f'</div></div>'
+        _schema_card(s, c)
         for s, c in sorted(sch_counts.items())
     )
 
@@ -905,10 +1035,13 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
     dep_rows_html = '\n'.join(dep_rows)
 
     # embed JS data — use replace not f-string to avoid brace conflicts
+    schema_nar_json = json.dumps(schema_narratives, ensure_ascii=False, separators=(',', ':'))
     js_with_data = (JS
-        .replace('__COL_DATA__',  col_data_json)
-        .replace('__DEF_MAP__',   def_map_json)
-        .replace('__OBJ_META__',  obj_meta_json))
+        .replace('__COL_DATA__',       col_data_json)
+        .replace('__DEF_MAP__',        def_map_json)
+        .replace('__OBJ_META__',       obj_meta_json)
+        .replace('__DIST_MAP__',       dist_map_json)
+        .replace('__SCHEMA_NAR_MAP__', schema_nar_json))
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1028,6 +1161,16 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
 </div><!-- /layout -->
 
 <!-- ── OBJECT DETAIL MODAL ── -->
+<div id="sn-overlay" class="sn-overlay" onclick="if(event.target===this)closeSchemaNarrative()">
+  <div class="sn-dialog">
+    <div class="sn-dialog-hdr">
+      <h2 id="sn-title">Schema Overview</h2>
+      <button class="sn-dialog-close" onclick="closeSchemaNarrative()" title="Close (Esc)">&#x2715;</button>
+    </div>
+    <div class="sn-dialog-body" id="sn-body"></div>
+  </div>
+</div>
+
 <div id="obj-modal" class="modal-overlay" style="display:none">
   <div class="modal-box">
     <div class="modal-hdr">
@@ -1040,12 +1183,14 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
     <div id="modal-ai-desc" class="modal-ai-desc" style="display:none"></div>
     <div id="modal-meta-row" class="modal-meta-row"></div>
     <div class="modal-tabs">
-      <button id="mtab-cols" class="mtab active" onclick="showModalTab('cols')">Columns</button>
-      <button id="mtab-ddl"  class="mtab"        onclick="showModalTab('ddl')">DDL / Definition</button>
+      <button id="mtab-cols"    class="mtab active" onclick="showModalTab('cols')">Columns</button>
+      <button id="mtab-ddl"     class="mtab"        onclick="showModalTab('ddl')">DDL / Definition</button>
+      <button id="mtab-select"  class="mtab"        onclick="showModalTab('select')">Select</button>
     </div>
     <div class="modal-body">
       <div id="modal-cols-body"></div>
-      <div id="modal-ddl-body" style="display:none"></div>
+      <div id="modal-ddl-body"    style="display:none"></div>
+      <div id="modal-select-body" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -1071,18 +1216,21 @@ def main():
             print(f" ERROR: {e}")
             return []
 
-    schemas    = run("schemas",              SCHEMAS_SQL)
-    objects    = run("objects",              OBJECTS_SQL)
-    columns    = run("columns",              COLUMNS_SQL)
-    defs       = run("view/proc definitions", DEFS_SQL)
-    fks        = run("foreign keys",         FK_SQL)
-    deps       = run("dependencies",         DEPS_SQL)
-    row_counts = run("row counts",           ROW_COUNTS_SQL)
+    schemas       = run("schemas",               SCHEMAS_SQL)
+    objects       = run("objects",               OBJECTS_SQL)
+    columns       = run("columns",               COLUMNS_SQL)
+    defs          = run("view/proc definitions",  DEFS_SQL)
+    fks           = run("foreign keys",           FK_SQL)
+    deps          = run("dependencies",           DEPS_SQL)
+    row_counts    = run("row counts",             ROW_COUNTS_SQL)
+    distributions = run("distributions",          DIST_SQL)
+    indexes       = run("indexes",                INDEX_SQL)
     conn.close()
 
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
     print("\nBuilding HTML…")
-    html = build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated)
+    html = build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated,
+                      distributions=distributions, indexes=indexes)
 
     out = "/home/thedavidporter/synapse_metadata_report_dev.html"
     with open(out, "w", encoding="utf-8") as f:
@@ -1121,11 +1269,13 @@ def main():
     print(f"  Columns              : {len(columns):,}")
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()

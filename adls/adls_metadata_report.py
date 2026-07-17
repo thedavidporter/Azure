@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 ADLS Gen2 Metadata Report
@@ -12,9 +13,20 @@ from datetime import datetime
 
 import requests
 
-MAX_DEPTH  = 3    # directory levels to walk (root listing + this many levels)
+MAX_DEPTH  = 6    # directory levels to walk (root listing + this many levels)
 MAX_PATHS  = 500  # max items returned per list call
 OUT_FILE   = "/home/thedavidporter/adls_metadata_report.html"
+
+# Filesystems skipped entirely — Databricks/ADF infrastructure temp & log containers
+SKIP_FS = {
+    "insights-logs-workflowruntime",
+    "adfstagedcommandtempdata",
+    "adfstagedcopytempdata",
+    "adfstagedpolybasetempdata",
+    "sqldbauditlogs",
+    "zus1-idoh-databricks-temp",
+    "tmpcontainer",
+}
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -164,12 +176,18 @@ body{background:var(--bg);color:var(--txt);font:13px/1.5 'Segoe UI',system-ui,sa
 .sb-acc{padding:8px 12px 3px;font-size:10px;font-weight:700;color:var(--acc);
   text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--brd)}
 .sb-acc:first-child{border-top:none}
-.sb-fs{padding:3px 14px;font-size:12px;color:var(--yel);font-weight:600;cursor:pointer;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-fs{padding:3px 8px 3px 10px;font-size:12px;color:var(--yel);font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:3px;overflow:hidden}
 .sb-fs:hover{background:var(--sur2)}
-.sb-dir{padding:2px 14px 2px 24px;font-size:11px;color:var(--mut);cursor:pointer;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-dir:hover{color:var(--txt)}
+.sb-fs-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.sb-tog{flex-shrink:0;font-size:9px;width:10px;text-align:center;
+  transition:transform .12s;display:inline-block;user-select:none;color:var(--mut)}
+.sb-tog.open{transform:rotate(90deg)}
+.sb-ch{display:none}.sb-ch.open{display:block}
+.sb-dir-item{display:flex;align-items:center;cursor:pointer;overflow:hidden;
+  font-size:11px;color:var(--mut);padding:2px 8px 2px 0}
+.sb-dir-item:hover{color:var(--txt);background:var(--sur2)}
+.sb-dir-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .hidden{display:none!important}
 
 /* main */
@@ -220,6 +238,16 @@ h1{font-size:20px;font-weight:700;margin-bottom:3px}
 .t-children{padding-left:16px;display:none}
 .t-children.open{display:block}
 
+/* global search bar */
+.main-search-wrap{position:relative;max-width:520px;margin-bottom:14px}
+.main-search-wrap input{width:100%;padding:8px 12px 8px 34px;background:var(--sur);
+  border:1px solid var(--brd);border-radius:8px;color:var(--txt);font-size:13px;
+  font-family:inherit;outline:none}
+.main-search-wrap input:focus{border-color:var(--acc)}
+.main-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--mut);font-size:13px;pointer-events:none}
+.search-count{font-size:11px;color:var(--mut);margin-bottom:10px}
+
 /* tables */
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{background:var(--sur2);padding:7px 11px;text-align:left;font-weight:700;
@@ -233,6 +261,7 @@ tr:hover td{background:var(--sur)}
 .sz{color:var(--grn);font-family:monospace;font-size:11px}
 .mt{color:var(--mut);font-size:11px}
 .mono{font-family:monospace;font-size:11px}
+.hl{background:#3a3000;color:var(--yel);border-radius:2px;padding:0 1px}
 """
 
 # ── JavaScript ────────────────────────────────────────────────────────────────
@@ -263,6 +292,50 @@ function ft(tid,q){
 }
 
 // ── sidebar ───────────────────────────────────────────────────────────────────
+function makeTog(hasKids){
+  const t=document.createElement('span');
+  t.className='sb-tog';
+  t.textContent=hasKids?'▶':' ';
+  return t;
+}
+
+function renderSbNode(n, parent, depth){
+  if(!n.is_dir||n.truncated) return;
+  const kids=(n.children||[]).filter(c=>c.is_dir&&!c.truncated);
+
+  const item=document.createElement('div');
+  item.className='sb-dir-item';
+  item.style.paddingLeft=(14+depth*10)+'px';
+
+  const tog=makeTog(kids.length>0);
+  item.appendChild(tog);
+
+  const txt=document.createElement('span');
+  txt.className='sb-dir-text';
+  txt.textContent='📁 '+n.name;
+  txt.title=[n.name, n.agg_size?fmtBytes(n.agg_size):'', n.agg_files?n.agg_files.toLocaleString()+' files':''].filter(Boolean).join(' · ');
+  item.appendChild(txt);
+
+  const ch=document.createElement('div');
+  ch.className='sb-ch';
+  let rendered=false;
+
+  parent.appendChild(item);
+  parent.appendChild(ch);
+
+  if(!kids.length) return;
+
+  item.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const open=ch.classList.toggle('open');
+    tog.classList.toggle('open',open);
+    if(open&&!rendered){
+      kids.forEach(c=>renderSbNode(c,ch,depth+1));
+      rendered=true;
+    }
+  });
+}
+
 function buildSidebar(){
   const sb=document.getElementById('sb-body');
   TREE_DATA.forEach(acc=>{
@@ -271,21 +344,39 @@ function buildSidebar(){
     ah.textContent=acc.account;
     sb.appendChild(ah);
     acc.filesystems.forEach(fs=>{
+      const dirs=fs.nodes.filter(n=>n.is_dir&&!n.truncated);
+
       const fh=document.createElement('div');
       fh.className='sb-fs';
-      fh.textContent='📂 '+fs.name;
       fh.title=fmtBytes(fs.agg_size)+' · '+fs.agg_files.toLocaleString()+' files';
+
+      const tog=makeTog(dirs.length>0);
+      fh.appendChild(tog);
+
+      const lbl=document.createElement('span');
+      lbl.className='sb-fs-label';
+      lbl.textContent='📂 '+fs.name;
+      fh.appendChild(lbl);
+
+      const ch=document.createElement('div');
+      ch.className='sb-ch';
+      let rendered=false;
+
+      sb.appendChild(fh);
+      sb.appendChild(ch);
+
       fh.addEventListener('click',()=>{
+        if(dirs.length){
+          const open=ch.classList.toggle('open');
+          tog.classList.toggle('open',open);
+          if(open&&!rendered){
+            dirs.forEach(n=>renderSbNode(n,ch,0));
+            rendered=true;
+          }
+        }
         showTab('tree',document.getElementById('tab-tree'));
         const el=document.getElementById('t-'+acc.account+'-'+fs.name);
         if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),50);
-      });
-      sb.appendChild(fh);
-      fs.nodes.filter(n=>n.is_dir).slice(0,10).forEach(n=>{
-        const d=document.createElement('div');
-        d.className='sb-dir';
-        d.textContent='└ '+n.name+(n.agg_size?' ('+fmtBytes(n.agg_size)+')':'');
-        sb.appendChild(d);
       });
     });
   });
@@ -293,7 +384,7 @@ function buildSidebar(){
 
 function filterSB(q){
   q=q.toLowerCase().trim();
-  document.querySelectorAll('.sb-fs,.sb-dir').forEach(el=>{
+  document.querySelectorAll('.sb-fs,.sb-dir-item').forEach(el=>{
     el.classList.toggle('hidden',!!q&&!el.textContent.toLowerCase().includes(q));
   });
 }
@@ -409,6 +500,97 @@ function renderLargest(){
   </tr>`).join('');
 }
 
+// ── global search ─────────────────────────────────────────────────────────────
+let _prevPanel=null;
+
+function hlText(text, q){
+  if(!q) return escH(text);
+  const idx=text.toLowerCase().indexOf(q.toLowerCase());
+  if(idx<0) return escH(text);
+  return escH(text.slice(0,idx))
+    +'<mark class="hl">'+escH(text.slice(idx,idx+q.length))+'</mark>'
+    +escH(text.slice(idx+q.length));
+}
+
+// Flatten all nodes (dirs + files) into a searchable list
+function buildSearchIndex(){
+  const rows=[];
+  TREE_DATA.forEach(acc=>{
+    acc.filesystems.forEach(fs=>{
+      function walk(nodes){
+        nodes.forEach(n=>{
+          if(n.truncated) return;
+          rows.push({
+            account:  acc.account,
+            fs:       fs.name,
+            path:     n.path||n.name,
+            is_dir:   n.is_dir,
+            agg_size: n.agg_size,
+            agg_files:n.agg_files,
+            modified: n.modified,
+          });
+          if(n.children&&n.children.length) walk(n.children);
+        });
+      }
+      walk(fs.nodes);
+    });
+  });
+  return rows;
+}
+let _searchIndex=null;
+
+function onMainSearch(val){
+  const q=val.trim();
+  const sp=document.getElementById('p-search');
+  const tabs=document.getElementById('tab-row');
+
+  if(!q){
+    // Restore previous panel
+    sp.classList.remove('active');
+    tabs.style.display='';
+    if(_prevPanel){
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      _prevPanel.classList.add('active');
+    }
+    document.getElementById('search-count').textContent='';
+    return;
+  }
+
+  // Save which panel was active before search started
+  if(!sp.classList.contains('active')){
+    _prevPanel=document.querySelector('.panel.active');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tabs.style.display='none';
+    sp.classList.add('active');
+  }
+
+  if(!_searchIndex) _searchIndex=buildSearchIndex();
+
+  const ql=q.toLowerCase();
+  const matches=_searchIndex.filter(r=>
+    r.account.toLowerCase().includes(ql)||
+    r.fs.toLowerCase().includes(ql)||
+    r.path.toLowerCase().includes(ql)
+  );
+
+  const countEl=document.getElementById('search-count');
+  countEl.textContent=matches.length
+    ? `${matches.length.toLocaleString()} result${matches.length!==1?'s':''} for "${q}"`
+    : `No results for "${q}"`;
+
+  const tbody=document.querySelector('#search-tbl tbody');
+  tbody.innerHTML=matches.slice(0,500).map(r=>`<tr>
+    <td>${hlText(r.account,ql)}</td>
+    <td>${hlText(r.fs,ql)}</td>
+    <td class="mono" style="max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        title="${escH(r.path)}">${hlText(r.path,ql)}</td>
+    <td style="font-size:10px;color:var(--mut);text-align:center">${r.is_dir?'📁':'📄'}</td>
+    <td class="sz">${r.agg_size?fmtBytes(r.agg_size):'—'}</td>
+    <td class="mt">${r.agg_files?r.agg_files.toLocaleString():'—'}</td>
+    <td class="mt">${escH((r.modified||'').slice(5,16))}</td>
+  </tr>`).join('');
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
   buildSidebar();
   renderTree();
@@ -452,7 +634,9 @@ def build_html(account_data, subscription, generated):
 
     tree_json  = json.dumps(account_data, ensure_ascii=False, separators=(',', ':'))
     large_json = json.dumps(large_data,   ensure_ascii=False, separators=(',', ':'))
-    depth_note = f"(showing ≤ {MAX_DEPTH} levels deep; sizes are partial if content extends further)"
+    skip_list  = ", ".join(sorted(SKIP_FS))
+    depth_note = (f"showing {MAX_DEPTH} levels deep · "
+                  f"infrastructure/temp containers excluded: {skip_list}")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -493,7 +677,14 @@ const LARGE_DATA = {large_json};
     <div class="sc"><div class="sc-n">{total_files:,}</div><div class="sc-l">Files (visible)</div></div>
   </div>
 
-  <div class="tabs">
+  <div class="main-search-wrap">
+    <span class="main-search-icon">🔍</span>
+    <input type="text" placeholder="Search accounts, file systems, paths…"
+      oninput="onMainSearch(this.value)" autocomplete="off"/>
+  </div>
+  <div class="search-count" id="search-count"></div>
+
+  <div class="tabs" id="tab-row">
     <div class="tab active" onclick="showTab('overview',this)">Overview</div>
     <div class="tab" id="tab-tree" onclick="showTab('tree',this)">Directory Tree</div>
     <div class="tab" onclick="showTab('large',this)">Largest Directories</div>
@@ -505,6 +696,16 @@ const LARGE_DATA = {large_json};
 
   <div class="panel" id="p-tree">
     <div class="tree-wrap" id="tree-body"></div>
+  </div>
+
+  <div class="panel" id="p-search">
+    <table id="search-tbl">
+      <thead><tr>
+        <th>Account</th><th>File System</th><th>Path</th>
+        <th>Type</th><th>Size</th><th>Files</th><th>Last Modified</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 
   <div class="panel" id="p-large">
@@ -557,6 +758,9 @@ def main():
         fs_data = []
         for fs in filesystems:
             fs_name = fs["name"]
+            if fs_name in SKIP_FS:
+                print(f"    Skipping {fs_name} (infrastructure/temp)")
+                continue
             print(f"    Walking {fs_name}…", end="", flush=True)
             nodes, agg_size, agg_files = walk(name, fs_name, "", token, 0)
             print(f" {fmt_bytes(agg_size)}, {agg_files:,} files")
@@ -584,11 +788,13 @@ def main():
     print(f"Report saved to:\n  {OUT_FILE}")
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()

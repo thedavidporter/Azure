@@ -16,10 +16,28 @@ _CHECKBOX_RE = re.compile(r'___\d+$')
 OUT_FILE            = "/home/thedavidporter/data_catalog.html"
 REQUEST_FORM_FILE   = "/home/thedavidporter/data_request_form.html"
 EXCLUSIONS_FILE     = "/home/thedavidporter/data_catalog_exclusions.json"
+DATASETS_FILE       = "/home/thedavidporter/data_catalog_datasets.json"
 REDCAP_SURVEY       = "https://redcap.isdh.in.gov/surveys/?s=HC9ENNHTX88D88TH"
 REDCAP_API_KEY      = "ED9EB1A5BA4D9E3FFCDA758B766280C6"
 REDCAP_API_URL      = "https://redcap.isdh.in.gov/api/"
 REQUEST_FORM_PAGE   = "data_request_form.html"
+
+
+def load_datasets():
+    """Load dataset registry from JSON file. Falls back to empty list on error."""
+    try:
+        with open(DATASETS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        datasets = data.get("datasets", [])
+        domains  = data.get("domains", [])
+        print(f"  Loaded {len(datasets)} datasets from {DATASETS_FILE}", flush=True)
+        return datasets, domains
+    except FileNotFoundError:
+        print(f"  [WARN] {DATASETS_FILE} not found — using empty dataset list", flush=True)
+        return [], []
+    except Exception as exc:
+        print(f"  [WARN] Could not load datasets: {exc}", flush=True)
+        return [], []
 
 
 def load_exclusions():
@@ -33,168 +51,11 @@ def load_exclusions():
         print(f"  [WARN] Could not load exclusions file: {exc}", flush=True)
         return set()
 
-# ── Dataset registry ──────────────────────────────────────────────────────────
+# ── Dataset registry — loaded from data_catalog_datasets.json ─────────────────
 # status: "verified" | "review" | "new" | "steward" | "requested"
 # access: "self-serve" | "approval" | "restricted"
-DATASETS = [
-    {
-        "name": "Chronic Disease Registry",
-        "domain": "Chronic Disease",
-        "icon": "📈",
-        "desc": "County-level case data covering diabetes, hypertension, and Parkinson's disease. Includes incidence rates and longitudinal trends by district.",
-        "division": "Data Products",
-        "steward": "Data Products",
-        "cadence": "Weekly",
-        "status": "verified",
-        "access": "approval",
-        "tags": ["chronic", "county", "registry"],
-        "last_reviewed": "2026-06-01",
-        "source": "PRD Synapse",
-    },
-    {
-        "name": "BRFSS County Indicators",
-        "domain": "Surveillance & BRFSS",
-        "icon": "📊",
-        "desc": "Survey-based behavioral risk indicators by county and year. Covers tobacco use, obesity, physical inactivity, and preventive care utilization.",
-        "division": "Epidemiology",
-        "steward": "Deputy CDO",
-        "cadence": "Annual",
-        "status": "verified",
-        "access": "self-serve",
-        "tags": ["brfss", "survey", "behavioral", "county"],
-        "last_reviewed": "2026-05-15",
-        "source": "PRD Synapse",
-    },
-    {
-        "name": "Immunization Extract",
-        "domain": "Immunization & Registries",
-        "icon": "💉",
-        "desc": "De-identified coverage rates by district and age cohort. Derived from the Indiana Immunization Registry (CHIRP).",
-        "division": "Data Products",
-        "steward": "Data Products",
-        "cadence": "Monthly",
-        "status": "verified",
-        "access": "approval",
-        "tags": ["immunization", "chirp", "coverage", "registry"],
-        "last_reviewed": "2026-06-10",
-        "source": "PRD Synapse",
-    },
-    {
-        "name": "Funding Intelligence Tracker",
-        "domain": "Grants & Funding",
-        "icon": "💰",
-        "desc": "Open grant opportunities tied to PHIG sustainability goals. Tracks federal, state, and foundation funding aligned to ODA program areas.",
-        "division": "Strategic Partnerships",
-        "steward": "Strategic Partnerships",
-        "cadence": "Weekly",
-        "status": "new",
-        "access": "self-serve",
-        "tags": ["grants", "phig", "funding", "sustainability"],
-        "last_reviewed": "2026-06-20",
-        "source": "Manual",
-    },
-    {
-        "name": "RHTP / GROW Outcomes",
-        "domain": "Maternal & Child Health",
-        "icon": "🎯",
-        "desc": "Appendix 3 outcome measures for the RHTP and GROW programs. Specification and data definitions are currently being finalized by ODA governance.",
-        "division": "Governance & Business Ops",
-        "steward": "ODA Governance",
-        "cadence": "Quarterly",
-        "status": "review",
-        "access": "restricted",
-        "tags": ["rhtp", "grow", "maternal", "outcomes"],
-        "last_reviewed": "2026-06-05",
-        "source": "Pending",
-    },
-    {
-        "name": "HFI County Dashboard",
-        "domain": "Maternal & Child Health",
-        "icon": "👶",
-        "desc": "Healthy Families Indiana enrollment, service utilization, and outcomes by county. Stewardship assignment is pending.",
-        "division": "Unassigned",
-        "steward": "Unassigned",
-        "cadence": "—",
-        "status": "steward",
-        "access": "restricted",
-        "tags": ["hfi", "healthy families", "county"],
-        "last_reviewed": "—",
-        "source": "Pending",
-    },
-    {
-        "name": "Vital Records — Births",
-        "domain": "Vital Records",
-        "icon": "📋",
-        "desc": "Annual birth certificate extract with demographics, prenatal care indicators, and birth outcomes. De-identified per IDOH data governance policy.",
-        "division": "Data Products",
-        "steward": "Data Products",
-        "cadence": "Annual",
-        "status": "verified",
-        "access": "approval",
-        "tags": ["births", "vital records", "demographics"],
-        "last_reviewed": "2026-04-01",
-        "source": "PRD Synapse",
-    },
-    {
-        "name": "Vital Records — Deaths",
-        "domain": "Vital Records",
-        "icon": "📋",
-        "desc": "Death certificate extract with cause-of-death coding (ICD-10), demographics, and county of residence. Used for mortality trend analysis.",
-        "division": "Data Products",
-        "steward": "Data Products",
-        "cadence": "Annual",
-        "status": "verified",
-        "access": "approval",
-        "tags": ["deaths", "vital records", "mortality", "icd-10"],
-        "last_reviewed": "2026-04-01",
-        "source": "PRD Synapse",
-    },
-    # ── Requested / In Pipeline ───────────────────────────────────────────────
-    {
-        "name": "Maternal Mortality Review",
-        "domain": "Maternal & Child Health",
-        "icon": "🔬",
-        "desc": "Aggregated committee review data on pregnancy-associated deaths. Requested by program leadership for quality improvement reporting.",
-        "division": "TBD",
-        "steward": "TBD",
-        "cadence": "Ad hoc",
-        "status": "requested",
-        "access": "restricted",
-        "tags": ["maternal mortality", "mmrc", "quality improvement"],
-        "last_reviewed": "—",
-        "source": "Requested",
-    },
-    {
-        "name": "SNAP / WIC Participation",
-        "domain": "Social Determinants",
-        "icon": "🥗",
-        "desc": "County-level SNAP and WIC participation rates for linkage with health outcomes data. Cross-agency data sharing agreement required.",
-        "division": "TBD",
-        "steward": "TBD",
-        "cadence": "Monthly",
-        "status": "requested",
-        "access": "restricted",
-        "tags": ["snap", "wic", "sdoh", "food security"],
-        "last_reviewed": "—",
-        "source": "Requested",
-    },
-    {
-        "name": "Syndromic Surveillance (ESSENCE)",
-        "domain": "Surveillance & BRFSS",
-        "icon": "🏥",
-        "desc": "Near real-time ED visit data from ESSENCE for syndromic surveillance monitoring. Integration with PRD Synapse pipeline is under scoping.",
-        "division": "Epidemiology",
-        "steward": "TBD",
-        "cadence": "Daily",
-        "status": "review",
-        "access": "restricted",
-        "tags": ["essence", "syndromic", "ed", "surveillance"],
-        "last_reviewed": "—",
-        "source": "In Scoping",
-    },
-]
-
-DOMAINS = sorted({d["domain"] for d in DATASETS})
+DATASETS, _JSON_DOMAINS = load_datasets()
+DOMAINS = _JSON_DOMAINS if _JSON_DOMAINS else sorted({d["domain"] for d in DATASETS})
 
 STATUS_META = {
     "verified":  {"label": "Verified",       "bg": "#1a3a2a", "color": "#4ade80"},
@@ -370,12 +231,11 @@ def fetch_redcap():
             },
         })
 
-    # Apply exclusion list (case-insensitive match on request title)
+    # Apply exclusion list (case-insensitive match on request title); also drop blank titles
     excluded = load_exclusions()
-    if excluded:
-        before = len(records)
-        records = [r for r in records if r["data_request"].lower() not in excluded]
-        print(f"  Excluded {before - len(records)} records by title filter", flush=True)
+    before = len(records)
+    records = [r for r in records if r["data_request"] and r["data_request"].lower() not in excluded]
+    print(f"  Excluded {before - len(records)} records by title filter", flush=True)
 
     # Sort newest first; records with no date go to the end
     records.sort(key=lambda r: r["date"] if r["date"] else "0000", reverse=True)
@@ -451,6 +311,23 @@ body{background:var(--bg);color:var(--txt);
   font-family:inherit;transition:all .12s;white-space:nowrap}
 .fchip:hover{border-color:var(--acc);color:var(--txt)}
 .fchip.active{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+/* ── RC search autocomplete ── */
+.rc-search-wrap{position:relative;flex:1;min-width:200px;max-width:360px}
+.rc-search-wrap input{width:100%;padding:8px 12px 8px 34px;border-radius:8px;
+  border:1px solid var(--brd);background:var(--sur2);color:var(--txt);
+  font-size:13px;font-family:inherit;outline:none}
+.rc-search-wrap input:focus{border-color:var(--acc)}
+.rc-search-wrap .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--mut);font-size:14px;pointer-events:none}
+.rc-suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--sur);border:1px solid var(--brd);border-radius:8px;
+  overflow:hidden;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.5);
+  max-height:260px;overflow-y:auto;display:none}
+.rc-sugg{padding:9px 14px;font-size:12px;cursor:pointer;color:var(--txt);
+  border-bottom:1px solid var(--brd);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+.rc-sugg:last-child{border-bottom:none}
+.rc-sugg:hover,.rc-sugg.rc-sugg-active{background:var(--sur2);color:var(--acc)}
 
 /* ── Section header ── */
 .sec-hdr{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
@@ -548,7 +425,7 @@ const RC_LABELS   = __RC_LABELS__;
 const REDCAP_SURVEY = '__REDCAP_SURVEY__';
 const REQUEST_FORM  = 'data_request_form.html';
 
-let activeDomain = 'all';
+let activeDomains = new Set(); // empty = show all
 let searchQ = '';
 
 const STATUS = {
@@ -566,6 +443,7 @@ const ACCESS = {
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function stripHtml(s){ return String(s||'').replace(/<[^>]*>/g,' ').replace(/[ \\t\\n\\r]+/g,' ').trim(); }
+function fmtN(n){ if(!n) return '0'; if(n>=1e9) return (n/1e9).toFixed(1)+'B'; if(n>=1e6) return (n/1e6).toFixed(1)+'M'; if(n>=1e3) return Math.round(n/1e3)+'K'; return String(n); }
 
 function badge(status){
   const m = STATUS[status] || {label:status, bg:'var(--sur2)', color:'var(--mut)'};
@@ -579,13 +457,14 @@ function renderCards(datasets, containerId){
     el.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>No datasets match your filters.</p></div>';
     return;
   }
-  el.innerHTML = datasets.map((d,i) => {
+  el.innerHTML = datasets.map(d => {
+    const gIdx = DATASETS.indexOf(d);
     const acc = ACCESS[d.access] || {label:d.access, icon:'❓'};
     const canRequest = d.status !== 'steward';
-    return `<div class="card" onclick="openModal(${i})">
+    return `<div class="card" onclick="openModal(${gIdx})">
       <div class="card-top">
         <div class="card-title-row">
-          <span class="card-icon">${d.icon}</span>
+          <span class="card-icon">${d.icon||'📁'}</span>
           <span class="card-title">${esc(d.name)}</span>
         </div>
         ${badge(d.status)}
@@ -597,7 +476,7 @@ function renderCards(datasets, containerId){
         <span class="meta-pill">${acc.icon} ${acc.label}</span>
       </div>
       <div class="card-actions" onclick="event.stopPropagation()">
-        <button class="card-btn" onclick="openModal(${i})">View details</button>
+        <button class="card-btn" onclick="openModal(${gIdx})">View details</button>
         ${canRequest
           ? `<a class="card-btn primary" href="${REQUEST_FORM}">Request ↗</a>`
           : `<button class="card-btn primary" disabled>Request ↗</button>`}
@@ -609,12 +488,15 @@ function renderCards(datasets, containerId){
 function applyFilters(){
   const q = searchQ.toLowerCase();
   const filtered = DATASETS.filter(d => {
-    const domainMatch = activeDomain === 'all' || d.domain === activeDomain;
+    const domainMatch = activeDomains.size === 0 || activeDomains.has(d.domain);
+    const schemaNames = Object.values(d.synapse_schemas||{}).flat().join(' ').toLowerCase();
     const searchMatch = !q ||
       d.name.toLowerCase().includes(q) ||
       d.desc.toLowerCase().includes(q) ||
       (d.tags||[]).some(t => t.toLowerCase().includes(q)) ||
-      d.domain.toLowerCase().includes(q);
+      d.domain.toLowerCase().includes(q) ||
+      (d.notes||'').toLowerCase().includes(q) ||
+      schemaNames.includes(q);
     return domainMatch && searchMatch;
   });
   const available  = filtered.filter(d => d.status !== 'requested');
@@ -632,16 +514,26 @@ function applyFilters(){
 }
 
 function setDomain(domain){
-  activeDomain = domain;
-  document.querySelectorAll('.fchip').forEach(c =>
-    c.classList.toggle('active', c.dataset.domain === domain));
-  document.querySelectorAll('.sb-item[data-domain]').forEach(b =>
-    b.classList.toggle('active', b.dataset.domain === domain));
+  if(domain === 'all'){
+    activeDomains.clear();
+  } else {
+    if(activeDomains.has(domain)) activeDomains.delete(domain);
+    else activeDomains.add(domain);
+  }
+  document.querySelectorAll('.fchip[data-domain]').forEach(c => {
+    c.classList.toggle('active', c.dataset.domain === 'all'
+      ? activeDomains.size === 0
+      : activeDomains.has(c.dataset.domain));
+  });
+  document.querySelectorAll('.sb-item[data-domain]').forEach(b => {
+    b.classList.toggle('active', b.dataset.domain === 'all'
+      ? activeDomains.size === 0
+      : activeDomains.has(b.dataset.domain));
+  });
   applyFilters();
 }
 
 // ── REDCap submissions cards ──────────────────────────────────────────────────
-let rcDomains  = new Set(); // empty = show all
 let rcStatuses = new Set(); // empty = show all
 
 function rcStatusStyle(s){
@@ -692,43 +584,78 @@ function setRcStatus(status){
   renderRC();
 }
 
-function buildRcDomains(){
-  const sources = [...new Set(RC_RECORDS.map(r => r.data_request).filter(Boolean))].sort();
-  const el = document.getElementById('rc-domain-chips');
-  if(!el) return;
-  el.innerHTML = `<button class="fchip active" data-rc-domain="all" onclick="setRcDomain(this.dataset.rcDomain)">All sources <span style="opacity:.65;font-size:10px;font-weight:400">${RC_RECORDS.length}</span></button>`
-    + sources.map(s => {
-        const n = RC_RECORDS.filter(r => r.data_request === s).length;
-        return `<button class="fchip" data-rc-domain="${esc(s)}" onclick="setRcDomain(this.dataset.rcDomain)">${esc(s)} <span style="opacity:.65;font-size:10px;font-weight:400">${n}</span></button>`;
-      }).join('');
+// ── RC autocomplete search ────────────────────────────────────────────────────
+let _rcSuggIdx = -1;
+
+function onRcSearch(val){
+  renderRC();
+  const q = val.trim().toLowerCase();
+  if(!q){ hideRcSuggestions(); return; }
+  const counts = {};
+  RC_RECORDS.forEach(r => { const t = r.data_request; if(t) counts[t] = (counts[t]||0)+1; });
+  const matches = Object.entries(counts)
+    .filter(([t]) => t.toLowerCase().includes(q))
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, 12);
+  showRcSuggestions(matches);
 }
 
-function setRcDomain(domain){
-  if(domain === 'all'){
-    rcDomains.clear();
-  } else {
-    if(rcDomains.has(domain)) rcDomains.delete(domain);
-    else rcDomains.add(domain);
-  }
-  document.querySelectorAll('[data-rc-domain]').forEach(c => {
-    const d = c.dataset.rcDomain;
-    c.classList.toggle('active', d === 'all' ? rcDomains.size === 0 : rcDomains.has(d));
-  });
+function showRcSuggestions(items){
+  const box = document.getElementById('rc-suggestions');
+  if(!box) return;
+  if(!items.length){ box.style.display='none'; return; }
+  _rcSuggIdx = -1;
+  box.innerHTML = items.map(([t, n], i) =>
+    `<div class="rc-sugg" data-idx="${i}" data-title="${esc(t)}" onmousedown="selectRcSugg(this.dataset.title)">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(t)}</span>
+      <span style="flex-shrink:0;font-size:10px;opacity:.55;margin-left:8px">${n}</span>
+    </div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function hideRcSuggestions(){
+  const box = document.getElementById('rc-suggestions');
+  if(box) box.style.display = 'none';
+  _rcSuggIdx = -1;
+}
+
+function selectRcSugg(title){
+  const inp = document.getElementById('rc-search');
+  if(inp){ inp.value = title; }
+  hideRcSuggestions();
   renderRC();
 }
 
-function renderRC(){
-  if(document.getElementById('rc-search'))
-    document.getElementById('rc-search').oninput = renderRC;
+function onRcSearchKey(e){
+  const box = document.getElementById('rc-suggestions');
+  if(!box || box.style.display === 'none') return;
+  const items = box.querySelectorAll('.rc-sugg');
+  if(!items.length) return;
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    _rcSuggIdx = Math.min(_rcSuggIdx + 1, items.length - 1);
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    _rcSuggIdx = Math.max(_rcSuggIdx - 1, 0);
+  } else if(e.key === 'Enter'){
+    e.preventDefault();
+    if(_rcSuggIdx >= 0) selectRcSugg(items[_rcSuggIdx].dataset.title);
+    else hideRcSuggestions();
+    return;
+  } else if(e.key === 'Escape'){
+    hideRcSuggestions(); return;
+  } else { return; }
+  items.forEach((el, i) => el.classList.toggle('rc-sugg-active', i === _rcSuggIdx));
+}
 
-  const q = (document.getElementById('rc-search')?.value || '').toLowerCase();
-  const hasChips  = rcDomains.size > 0;
+function renderRC(){
+  const q = (document.getElementById('rc-search')?.value || '').toLowerCase().trim();
   const hasStatus = rcStatuses.size > 0;
   const hasQ = q.length > 0;
   let recs = RC_RECORDS;
-  if(hasChips || hasStatus || hasQ){
+  if(hasStatus || hasQ){
     recs = recs.filter(r => {
-      const chipMatch   = hasChips  && rcDomains.has(r.data_request);
       const statusMatch = hasStatus && rcStatuses.has(r.status);
       const searchMatch = hasQ && (
         (r.requester      || '').toLowerCase().includes(q) ||
@@ -742,7 +669,7 @@ function renderRC(){
         (r.data_fields    || '').toLowerCase().includes(q) ||
         (r.data_direction || '').toLowerCase().includes(q)
       );
-      return chipMatch || statusMatch || searchMatch;
+      return statusMatch || searchMatch;
     });
   }
 
@@ -915,18 +842,38 @@ function openModal(idx){
         <div class="modal-value">${esc(d.cadence)}</div>
       </div>
       <div>
-        <div class="modal-label">Source System</div>
-        <div class="modal-value">${esc(d.source)}</div>
-      </div>
-      <div>
         <div class="modal-label">Last Reviewed</div>
-        <div class="modal-value">${esc(d.last_reviewed)}</div>
+        <div class="modal-value">${esc(d.last_reviewed||'—')}</div>
       </div>
-      <div>
+      <div style="grid-column:1/-1">
         <div class="modal-label">Tags</div>
         <div class="modal-value">${(d.tags||[]).map(t=>`<span class="meta-pill">${esc(t)}</span>`).join(' ')}</div>
       </div>
     </div>
+    ${(()=>{
+      const ss = d.synapse_schemas || {};
+      const ar = d.approx_rows || {};
+      const layers = [
+        {key:'reporting', label:'Reporting'},
+        {key:'mart',      label:'Data Mart'},
+        {key:'source',    label:'Source'},
+      ].filter(l => ss[l.key] && ss[l.key].length);
+      if(!layers.length) return '';
+      return `<div class="modal-section">
+        <div class="modal-label">Synapse Schemas</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+          ${layers.map(l => `<div>
+            <span style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;font-weight:600">${l.label}</span>
+            ${ar[l.key] ? `<span style="font-size:10px;color:var(--acc);margin-left:8px">~${fmtN(ar[l.key])} rows</span>` : ''}
+            <div style="margin-top:3px">${ss[l.key].map(s=>`<span class="meta-pill" style="font-family:monospace;font-size:10px">${esc(s)}</span>`).join(' ')}</div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    })()}
+    ${d.notes ? `<div class="modal-section">
+      <div class="modal-label">Notes</div>
+      <div style="font-size:12px;color:var(--mut);line-height:1.6;margin-top:4px">${esc(d.notes)}</div>
+    </div>` : ''}
     <div class="modal-actions">
       <button onclick="closeModal()">Close</button>
       ${canRequest
@@ -943,7 +890,6 @@ function closeModal(){
 document.addEventListener('DOMContentLoaded', () => {
   applyFilters();
   buildRcStatusFilters();
-  buildRcDomains();
   renderRC();
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if(e.target === e.currentTarget) closeModal();
@@ -1069,13 +1015,17 @@ def build_html(generated, rc_records, rc_labels):
       Submissions from the IDOH Data Sharing Request Form. Click any card to view full details.
     </p>
     <div class="toolbar" style="margin-bottom:12px">
-      <div class="search-wrap">
+      <div class="rc-search-wrap">
         <span class="search-icon">🔍</span>
-        <input id="rc-search" type="text" placeholder="Search requests…"/>
+        <input id="rc-search" type="text" placeholder="Search or filter requests…"
+          autocomplete="off"
+          oninput="onRcSearch(this.value)"
+          onkeydown="onRcSearchKey(event)"
+          onblur="setTimeout(()=>hideRcSuggestions(),150)"/>
+        <div class="rc-suggestions" id="rc-suggestions"></div>
       </div>
     </div>
     <div class="filter-row" id="rc-status-filters" style="margin-bottom:10px"></div>
-    <div class="filter-row" id="rc-domain-chips"></div>
     <div class="grid" id="grid-rc"></div>
 
   </div><!-- /main -->
@@ -1516,12 +1466,14 @@ def main():
     print(f"  Catalog datasets : {len(DATASETS)} ({sum(1 for d in DATASETS if d['status'] != 'requested')} available, {sum(1 for d in DATASETS if d['status'] == 'requested')} requested)")
     print(f"  REDCap requests  : {len(rc_records)}")
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated: index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated: index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 
 
 if __name__ == "__main__":

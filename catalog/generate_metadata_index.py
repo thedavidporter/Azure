@@ -5,6 +5,7 @@ Add to publish script: run this first so the index is always current.
 """
 
 import os
+import sys
 from datetime import datetime
 
 OUT_FILE    = "/home/thedavidporter/index.html"
@@ -157,6 +158,18 @@ REPORTS = [
         ],
     },
     {
+        "category": "Azure Security & Access",
+        "icon": "🔐",
+        "items": [
+            {
+                "title": "Security Groups & Access",
+                "env": "ALL",
+                "desc": "All Entra ID security groups with Azure role assignments across every subscription — group members, roles held, and which Synapse, Databricks, ADF, Key Vault, and storage resources each group can access.",
+                "url":  "azure_security_groups_report.html",
+            },
+        ],
+    },
+    {
         "category": "Azure DevOps",
         "icon": "🔧",
         "items": [
@@ -228,6 +241,17 @@ body{background:var(--bg);color:var(--txt);font:14px/1.6 'Segoe UI',system-ui,sa
 .card-refresh.never{color:var(--red)}
 .footer{text-align:center;color:var(--mut);font-size:11px;margin-top:48px;
   padding-top:20px;border-top:1px solid var(--brd)}
+
+/* publish-in-progress banner */
+.run-banner{background:#2a1e00;border:1px solid var(--yel);border-radius:8px;
+  padding:10px 18px;margin-bottom:28px;display:flex;align-items:center;gap:12px;
+  font-size:13px;color:var(--yel)}
+.run-dot{width:8px;height:8px;border-radius:50%;background:var(--yel);flex-shrink:0;
+  animation:run-pulse 1.2s ease-in-out infinite}
+@keyframes run-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}
+.run-info{flex:1;display:flex;flex-direction:column;gap:6px}
+.run-progress-track{width:100%;height:6px;border-radius:3px;background:rgba(255,200,0,.2);overflow:hidden}
+.run-progress-fill{height:100%;border-radius:3px;background:var(--yel);transition:width .3s ease}
 
 /* feedback widget */
 .fb-toggle{position:fixed;bottom:24px;left:24px;z-index:1000;
@@ -318,7 +342,7 @@ def get_last_refreshed(url):
     return label, css, str(int(raw_mtime))
 
 
-def build_html(generated):
+def build_html(generated, running_since=None, step=None, total=None):
     sections_html = ""
 
     for group in REPORTS:
@@ -353,10 +377,30 @@ def build_html(generated):
       </div>
     </div>"""
 
+    if running_since:
+        if step is not None and total:
+            pct = int(step / total * 100)
+            step_txt = f'{step} of {total} reports complete ({pct}%)'
+            bar = f'<div class="run-progress-track"><div class="run-progress-fill" style="width:{pct}%"></div></div>'
+        else:
+            pct = 0
+            step_txt = 'reports will update when complete'
+            bar = ''
+        banner_html = (
+            f'<div class="run-banner"><div class="run-dot"></div>'
+            f'<div class="run-info"><span>Refresh in progress since {running_since} &mdash; {step_txt}</span>'
+            f'{bar}</div></div>'
+        )
+    else:
+        banner_html = ''
+
+    auto_refresh = '<meta http-equiv="refresh" content="30"/>' if running_since else ''
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+{auto_refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>IDOH Azure Metadata Marketplace</title>
 <style>{CSS}</style>
@@ -367,16 +411,19 @@ def build_html(generated):
   <div class="hero">
     <h1>IDOH Metadata Marketplace</h1>
     <p>Centralized metadata documentation for the Office of Data Analytics for Indiana Department of Health.</p>
-    <span class="badge">Last published: {generated}</span>
+    <span class="badge">{'Refreshing&hellip;' if running_since else f'Last published: {generated}'}</span>
     <br/><a href="help.html" style="display:inline-block;margin-top:14px;font-size:12px;
       color:var(--acc);border:1px solid var(--brd);border-radius:6px;padding:5px 16px;
       text-decoration:none;" title="Open the Help &amp; Guide page">&#10067; Help &amp; Guide</a>
   </div>
 
+  {banner_html}
+
   {sections_html}
 
   <div class="footer">
-    Hosted on Azure Static Web Apps &nbsp;·&nbsp; {BASE_URL}
+    Hosted on Azure Databricks &nbsp;·&nbsp; idoh-metadata-marketplace-5757046586469840.0.azure.databricksapps.com
+    <br/>Also available on Azure Static Web Apps &nbsp;·&nbsp; {BASE_URL}
   </div>
 
 </div>
@@ -578,8 +625,21 @@ function fbClear(){{
 
 
 def main():
+    running_since = None
+    step = None
+    total = None
+    if "--running" in sys.argv:
+        idx = sys.argv.index("--running")
+        running_since = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else datetime.now().strftime("%Y-%m-%d %H:%M")
+    if "--step" in sys.argv:
+        idx = sys.argv.index("--step")
+        step = int(sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
+    if "--total" in sys.argv:
+        idx = sys.argv.index("--total")
+        total = int(sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
+
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
-    html = build_html(generated)
+    html = build_html(generated, running_since=running_since, step=step, total=total)
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"Saved: {OUT_FILE}")

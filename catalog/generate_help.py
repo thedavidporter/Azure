@@ -50,10 +50,12 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .meta{color:var(--mut);font-size:12px;margin-bottom:32px}
 
 /* report cards */
-.report-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px}
-.report-card{background:var(--sur);border:1px solid var(--brd);border-radius:10px;padding:16px 18px}
+.report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.report-card{background:var(--sur);border:1px solid var(--brd);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column}
+.report-card-cat{font-size:10px;font-weight:700;color:var(--acc);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:6px}
 .report-card h4{font-size:13px;font-weight:700;margin-bottom:6px}
-.report-card p{font-size:12px;color:var(--mut);margin:0}
+.report-card p{font-size:12px;color:var(--mut);margin:0;flex:1}
 .report-card .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
 .tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}
 .tag-dev{background:#1e2a4a;color:var(--acc)}
@@ -105,6 +107,8 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .gl-row:last-child{border-bottom:none}
 .gl-term{font-weight:700;color:var(--cyn);margin-bottom:3px}
 .gl-def{color:var(--mut);font-size:13px;line-height:1.5}
+.gl-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--acc);padding:18px 0 6px;border-bottom:2px solid var(--acc);margin-bottom:2px}
 
 /* ── Demo animation card ─────────────────────────────────── */
 .dh-wrap{margin:18px 0 4px;user-select:none}
@@ -1036,9 +1040,10 @@ def build_html(generated):
   <!-- REPORT DIRECTORY -->
   <h2 id="reports">Report Directory</h2>
 
-  <h3>&#129521; Azure Synapse Analytics</h3>
   <div class="report-grid">
+
     <div class="report-card">
+      <div class="report-card-cat">&#129521; Azure Synapse Analytics</div>
       <h4>Synapse Metadata Report</h4>
       <p>Complete inventory of the Synapse Dedicated SQL Pool: schemas, tables (with row counts and column details), views with full T-SQL definitions and plain-English explanations, stored procedures, foreign keys, object dependencies, and all columns. The primary place to explore what data exists and how objects relate to each other.</p>
       <div class="tags">
@@ -1048,7 +1053,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="synapse_metadata_report_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
+
     <div class="report-card">
+      <div class="report-card-cat">&#129521; Azure Synapse Analytics</div>
       <h4>Synapse Delta Report</h4>
       <p>Day-over-day change tracking for the Synapse SQL Pool. Shows objects added, removed, or modified since the previous snapshot, plus column-level changes and tables whose row count changed significantly. Use this to answer "what changed overnight?"</p>
       <div class="tags">
@@ -1058,11 +1065,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="synapse_metadata_delta_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#128257; Azure Data Factory</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#128257; Azure Data Factory</div>
       <h4>ADF Metadata Report</h4>
       <p>Complete inventory of Azure Data Factory pipelines and orchestration. Covers pipelines with all activities, datasets, linked services, triggers (schedule &amp; event), data flows, integration runtimes, and 7-day run history. The Hierarchy tab shows the full pipeline call tree from triggers through master, intermediate, and child pipelines.</p>
       <div class="tags">
@@ -1072,11 +1077,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="adf_metadata_report_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#128452;&#65039; Azure Data Lake Storage Gen2</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#128452;&#65039; Azure Data Lake Storage Gen2</div>
       <h4>ADLS Gen2 Metadata Report</h4>
       <p>Inventory of all HNS-enabled Azure Data Lake Storage accounts: filesystems (containers), directory trees, file and folder counts, and storage sizes. Use this to understand the raw data lake layout, identify unused containers, and estimate storage costs.</p>
       <div class="tags">
@@ -1084,11 +1087,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="adls_metadata_report.html">Open &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#9889; Azure Logic Apps</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#9889; Azure Logic Apps</div>
       <h4>Logic Apps Metadata Report</h4>
       <p>Inventory of Azure Logic Apps workflows: trigger types (HTTP, schedule, event), action counts, API connections used, and recent run history with success/failure status. Logic Apps are used for notification workflows (Teams alerts, email) and lightweight API integrations.</p>
       <div class="tags">
@@ -1098,11 +1099,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="logic_apps_metadata_report_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#9881;&#65039; Azure Databricks</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#9881;&#65039; Azure Databricks</div>
       <h4>Databricks Metadata Report</h4>
       <p>Covers all three Databricks workspaces (IZ-DEV, DEV, and PRD): clusters with state and runtime version, scheduled jobs, Git-linked repos, SQL warehouses, cluster policies, and secret scope names (no values). Use this to see what compute exists and which jobs are scheduled.</p>
       <div class="tags">
@@ -1110,11 +1109,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="databricks_metadata_report.html">Open &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#127963;&#65039; Azure SQL Data Warehouse</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#127963;&#65039; Azure SQL Data Warehouse</div>
       <h4>SQL DW Metadata Report</h4>
       <p>Complete inventory of the legacy Azure SQL Data Warehouse (Synapse Dedicated SQL Pool — ACE warehouse). Covers schemas grouped by layer (SM / DM / Reporting), tables with distribution type and index type, accurate row counts, views, stored procedures, and all columns. The schema Layer column identifies which tier of the data architecture each object belongs to.</p>
       <div class="tags">
@@ -1124,11 +1121,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="sql_dw_metadata_report_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#127760; Azure Networking</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#127760; Azure Networking</div>
       <h4>VNet Metadata Report</h4>
       <p>Azure Virtual Network security and topology inventory: VNets, subnets, NSG rules (inbound and outbound), private endpoints, VNet peerings, and data-exfiltration risk indicators. Use this to confirm that services are accessed over private endpoints and that NSG rules do not expose data to the public internet.</p>
       <div class="tags">
@@ -1136,11 +1131,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="vnet_metadata_report.html">Open &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#128295; Azure DevOps</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#128295; Azure DevOps</div>
       <h4>DevOps Metadata Report</h4>
       <p>Azure DevOps project and repository inventory: repos with size and last activity, branches (active/stale, ahead/behind main), build pipelines and recent run history, open and completed pull requests, branch protection policies, and deployment environments. Use this for development velocity tracking and branch hygiene audits.</p>
       <div class="tags">
@@ -1148,11 +1141,9 @@ def build_html(generated):
         <span class="tag tag-link"><a href="ado_metadata_report.html">Open &#8599;</a></span>
       </div>
     </div>
-  </div>
 
-  <h3>&#128273; Azure Key Vault</h3>
-  <div class="report-grid">
     <div class="report-card">
+      <div class="report-card-cat">&#128273; Azure Key Vault</div>
       <h4>Key Vault Metadata Report</h4>
       <p>Secret, key, and certificate inventory (names and metadata only — no values are ever exposed). Shows enabled/disabled status, expiry dates, and access policies. Use this to audit secrets nearing expiry and confirm that access is correctly restricted.</p>
       <div class="tags">
@@ -1162,6 +1153,7 @@ def build_html(generated):
         <span class="tag tag-link"><a href="keyvault_metadata_report_prd.html">Open PRD &#8599;</a></span>
       </div>
     </div>
+
   </div>
 
   <!-- QUICK START -->
@@ -1206,6 +1198,7 @@ def build_html(generated):
   </ul>
 
   <!-- Q&A -->
+  <div class="qa-wrapper">
   <h2 id="qa">How Do I&hellip;</h2>
   <div class="filter-bar">
     <button class="filter-btn active" data-filter="all"     onclick="filterQA('all')">All Questions</button>
@@ -1215,6 +1208,7 @@ def build_html(generated):
     <button class="filter-btn"        data-filter="engineer" onclick="filterQA('engineer')">Data Engineer</button>
   </div>
   {q_and_a}
+  </div><!-- /qa-wrapper -->
 
   <!-- GLOSSARY -->
   <h2 id="glossary">Glossary</h2>
@@ -1261,6 +1255,26 @@ def build_html(generated):
     <div class="gl-row"><div class="gl-term">Stored Procedure</div><div class="gl-def">A reusable block of T-SQL logic stored in the database and executed by name. Commonly used in Synapse and SQL DW for ETL transformations, data loads, and business rule enforcement.</div></div>
     <div class="gl-row"><div class="gl-term">View</div><div class="gl-def">A named SQL query stored in the database that behaves like a table. Views abstract underlying table complexity, enforce access control, and can be used as the source for BI reports.</div></div>
     <div class="gl-row"><div class="gl-term">Foreign Key</div><div class="gl-def">A referential integrity constraint that links a column in one table to the primary key of another. In Synapse Dedicated SQL Pools, foreign keys are declared but not enforced — they exist for documentation and query optimization hints only.</div></div>
+
+    <div class="gl-section">Data Catalog — Dataset Status</div>
+    <div class="gl-row"><div class="gl-term">Verified</div><div class="gl-def">Data is visible in the <strong>Reporting layer</strong> (<code>Reporting_*</code> schemas) of the Synapse PRD snapshot with non-zero row counts. The dataset has been ingested, modeled, and surfaced through all three layers (Source → Mart → Reporting). <em>Note: all status values are estimates inferred from the PRD snapshot and are pending formal validation by the dataset steward.</em></div></div>
+    <div class="gl-row"><div class="gl-term">In Review</div><div class="gl-def">No Data Mart or Reporting layer schemas were found for this dataset, or those schemas exist but contain zero rows. Data may be present in the Source layer only. Indicates the dataset needs steward review to confirm whether ingestion is complete and the data is usable. <em>Estimated — pending steward validation.</em></div></div>
+    <div class="gl-row"><div class="gl-term">Needs Steward</div><div class="gl-def">The dataset is likely present in the data warehouse based on source system knowledge, but no identified data steward has been recorded. Ownership, data quality, and access decisions cannot be made until a steward is assigned. <em>Estimated — pending steward identification.</em></div></div>
+    <div class="gl-row"><div class="gl-term">New</div><div class="gl-def">Recently ingested or recently added to the catalog. Not yet fully validated or reviewed by a steward. Status may change to Verified or In Review after the first review cycle.</div></div>
+    <div class="gl-row"><div class="gl-term">Requested</div><div class="gl-def">The dataset has been identified as a stakeholder need but has not yet been ingested into the data warehouse. No Synapse schemas exist for this dataset. A data request or integration project is required to bring it in.</div></div>
+
+    <div class="gl-section">Data Catalog — Refresh Cadence</div>
+    <div class="gl-row"><div class="gl-term">Cadence (how it is determined)</div><div class="gl-def">Cadence values in the dataset registry are <strong>inferred</strong> from two sources: (1) table or column name patterns in the Synapse PRD snapshot containing keywords such as <code>ANNUAL</code>, <code>QUARTERLY</code>, or <code>WEEKLY</code>; and (2) known source system reporting cycles (e.g. BRFSS is an annual telephone survey; hospital discharge data is submitted monthly; EMS/syndromic surveillance feeds are near-daily). These are estimates — the authoritative schedule lives in the ADF pipeline trigger for each data source.</div></div>
+    <div class="gl-row"><div class="gl-term">Annual</div><div class="gl-def">Data is refreshed once per year. Typical for survey-based programs (BRFSS, YRBS), vital statistics (birth/death certificates), and compliance reporting that follow a calendar or fiscal year cycle.</div></div>
+    <div class="gl-row"><div class="gl-term">Quarterly</div><div class="gl-def">Data is refreshed four times per year. Typical for grant reporting, some hospital quality measures, and data sources with quarterly submission requirements.</div></div>
+    <div class="gl-row"><div class="gl-term">Monthly</div><div class="gl-def">Data is refreshed each month. Common for immunization registry snapshots, hospital discharge submissions, WIC participation data, and similar program-level reports.</div></div>
+    <div class="gl-row"><div class="gl-term">Weekly</div><div class="gl-def">Data is refreshed each week. Typical for syndromic surveillance, notifiable disease case reporting, and environmental monitoring programs where timeliness is important.</div></div>
+    <div class="gl-row"><div class="gl-term">Daily / Near Real-time</div><div class="gl-def">Data is refreshed daily or on a near-continuous basis. Typical for electronic lab reporting (ELR), EMS run reports, and event-driven HL7/FHIR feeds where lag of more than 24 hours would affect public health response.</div></div>
+
+    <div class="gl-section">Data Catalog — Access Levels</div>
+    <div class="gl-row"><div class="gl-term">Self-Serve</div><div class="gl-def">Data is available in the <strong>Reporting layer</strong> (<code>Reporting_*</code> schemas) as aggregated, suppressed, or de-identified summaries. No individual-level records are exposed. IDOH staff with standard data warehouse access can query these tables directly or through a BI tool without submitting a formal data request. <em>Inferred from presence of <code>Reporting_*</code> schemas in the PRD snapshot.</em></div></div>
+    <div class="gl-row"><div class="gl-term">Approval Required</div><div class="gl-def">Data is in the <strong>Data Mart layer</strong> (<code>DM_*</code> schemas) and may include individual-level de-identified records, sensitive program data, or analytic tables not yet promoted to a public reporting layer. Access requires a completed <a href="data_request_form.html">data request form</a> and approval through the IDOH data governance process. <em>Inferred from presence of <code>DM_*</code> schemas without a corresponding <code>Reporting_*</code> layer, or from program sensitivity.</em></div></div>
+    <div class="gl-row"><div class="gl-term">Restricted</div><div class="gl-def">Data is in the <strong>Source / Staging layer</strong> (<code>SM_*</code> schemas) or involves Protected Health Information (PHI), sensitive programs (e.g. HIV/AIDS, STI, behavioral health, child abuse), or data covered by specific Data Use Agreements (DUAs) or federal regulations (e.g. 42 CFR Part 2). Access requires executive approval, legal review, and in some cases IRB involvement. <em>Inferred from <code>SM_*</code> schema presence or known program sensitivity.</em></div></div>
   </div>
 
 </div><!-- /main -->

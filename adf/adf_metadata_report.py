@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Azure Data Factory Metadata Report
@@ -646,6 +647,90 @@ def fetch_pipeline_runs(client, resource_group, factory_name, subscription_id, d
     print(f" {len(runs)}")
     return runs
 
+
+def fetch_activity_runs(client, resource_group, factory_name, pipeline_runs, max_runs=50):
+    """Fetch activity-level run data for the most recent pipeline runs."""
+    from azure.mgmt.datafactory.models import RunFilterParameters
+    print(f"  Activity Runs (top {max_runs} pipeline runs)...", end="", flush=True)
+    activity_runs = []
+    # Only query the most recent N completed runs to keep it fast
+    candidates = [r for r in pipeline_runs if r["status"] in ("Succeeded", "Failed")][:max_runs]
+    now = datetime.now(timezone.utc)
+    start_bound = now - timedelta(days=30)
+    for run in candidates:
+        try:
+            params = RunFilterParameters(
+                last_updated_after=start_bound,
+                last_updated_before=now,
+            )
+            result = client.activity_runs.query_by_pipeline_run(
+                resource_group_name=resource_group,
+                factory_name=factory_name,
+                run_id=run["run_id"],
+                filter_parameters=params,
+            )
+            for a in (result.value or []):
+                dur_ms   = getattr(a, 'duration_in_ms', None)
+                atype    = safe(getattr(a, 'activity_type', '') or '')
+                aname    = safe(getattr(a, 'activity_name', '') or '')
+                status   = safe(getattr(a, 'status', '') or '')
+                start_dt = getattr(a, 'activity_run_start', None)
+                output   = getattr(a, 'output', None) or {}
+                # Copy activity extras
+                rows_read    = output.get('rowsRead', '')
+                rows_copied  = output.get('rowsCopied', '')
+                data_read    = output.get('dataRead', '')
+                data_written = output.get('dataWritten', '')
+                copy_dur_s   = output.get('copyDuration', '')
+                throughput   = output.get('throughput', '')
+                source       = (output.get('dataRead') and output.get('sourcePeakConnections', '')) or ''
+                activity_runs.append({
+                    "pipeline_name": run["pipeline_name"],
+                    "run_id":        run["run_id"],
+                    "activity_name": aname,
+                    "activity_type": atype,
+                    "status":        status,
+                    "start":         start_dt.strftime("%Y-%m-%d %H:%M:%S") if start_dt else '',
+                    "duration_ms":   int(dur_ms) if dur_ms is not None else 0,
+                    "duration":      fmt_duration(dur_ms),
+                    "rows_read":     rows_read,
+                    "rows_copied":   rows_copied,
+                    "data_read":     data_read,
+                    "data_written":  data_written,
+                    "copy_dur_s":    copy_dur_s,
+                    "throughput":    throughput,
+                })
+        except Exception:
+            pass
+    activity_runs.sort(key=lambda x: x["duration_ms"], reverse=True)
+    print(f" {len(activity_runs)}")
+    return activity_runs
+
+
+def fmt_bytes(b):
+    if b == '' or b is None:
+        return ''
+    try:
+        b = float(b)
+    except (ValueError, TypeError):
+        return str(b)
+    if b >= 1_073_741_824:
+        return f"{b/1_073_741_824:.1f} GB"
+    if b >= 1_048_576:
+        return f"{b/1_048_576:.1f} MB"
+    if b >= 1_024:
+        return f"{b/1_024:.1f} KB"
+    return f"{int(b)} B"
+
+
+def fmt_rows(n):
+    if n == '' or n is None:
+        return ''
+    try:
+        return f"{int(n):,}"
+    except (ValueError, TypeError):
+        return str(n)
+
 # ── CSS ────────────────────────────────────────────────────────────────────────
 
 CSS = """
@@ -731,6 +816,19 @@ tr.clickable{cursor:pointer}
 .act-external{background:#3a1e3a;color:#e879f9}
 .act-var{background:#252836;color:#94a3b8}
 .act-default{background:#252836;color:#94a3b8}
+
+/* activity performance tab */
+.perf-filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.perf-btn{font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;
+  border:1px solid var(--brd);background:var(--sur);color:var(--mut);cursor:pointer}
+.perf-btn:hover{border-color:var(--acc);color:var(--txt)}
+.perf-btn.active{background:var(--acc);border-color:var(--acc);color:#fff}
+.dur-bar-wrap{display:flex;align-items:center;gap:8px;min-width:140px}
+.dur-bar{height:6px;border-radius:3px;background:var(--acc);flex-shrink:0;min-width:2px}
+.dur-bar.copy{background:#60a5fa}
+.dur-bar.failed{background:var(--red)}
+.perf-copy-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;
+  background:#1e3a5f;color:#60a5fa;margin-left:4px;vertical-align:middle}
 
 /* trigger state */
 .state-started{color:var(--grn);font-weight:700}
@@ -988,6 +1086,28 @@ function toggleMonErr(id){
   const showingFull=f.style.display!=='none';
   s.style.display=showingFull?'':'none';
   f.style.display=showingFull?'none':'';
+}
+
+// ── activity performance filters ──────────────────────────────────────────────
+let _perfFilter = 'all';
+function filterPerf(mode, btn){
+  _perfFilter = mode;
+  document.querySelectorAll('.perf-btn').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  applyPerfFilter();
+}
+function filterPerfSearch(q){ applyPerfFilter(q); }
+function applyPerfFilter(q){
+  q = (q !== undefined ? q : document.getElementById('perf-search').value).toLowerCase().trim();
+  document.querySelectorAll('#perf-tbl tbody tr').forEach(tr => {
+    const isCopy   = (tr.dataset.type||'').toLowerCase() === 'copy';
+    const isFailed = (tr.dataset.status||'').toLowerCase() === 'failed';
+    const modeOk   = _perfFilter === 'all'
+                  || (_perfFilter === 'copy'   && isCopy)
+                  || (_perfFilter === 'failed' && isFailed);
+    const textOk   = !q || tr.textContent.toLowerCase().includes(q);
+    tr.classList.toggle('hidden', !modeOk || !textOk);
+  });
 }
 
 // ── sidebar search ────────────────────────────────────────────────────────────
@@ -1258,7 +1378,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeModal(
 
 # ── HTML builder ───────────────────────────────────────────────────────────────
 
-def build_html(data, factory_name, generated, runs=None):
+def build_html(data, factory_name, generated, runs=None, activity_runs=None):
     pipelines       = data["pipelines"]
     datasets        = data["datasets"]
     linked_services = data["linked_services"]
@@ -1266,6 +1386,7 @@ def build_html(data, factory_name, generated, runs=None):
     data_flows      = data["data_flows"]
     irs             = data["integration_runtimes"]
     runs            = runs or []
+    activity_runs   = activity_runs or []
 
     # ── JSON blobs for JS ──────────────────────────────────────────────────────
     pipe_map = {p["name"]: p for p in pipelines}
@@ -1441,6 +1562,35 @@ def build_html(data, factory_name, generated, runs=None):
         )
     mon_rows_html = '\n'.join(mon_rows) or \
         '<tr><td colspan="6" style="color:var(--mut);padding:12px">No pipeline runs found for the past 7 days.</td></tr>'
+
+    # ── activity performance rows ──────────────────────────────────────────────
+    max_dur_ms = max((a["duration_ms"] for a in activity_runs), default=1) or 1
+    perf_rows = []
+    for rank, a in enumerate(activity_runs, 1):
+        is_copy   = a["activity_type"].lower() == "copy"
+        is_failed = a["status"].lower() == "failed"
+        bar_pct   = min(100, int(a["duration_ms"] / max_dur_ms * 100))
+        bar_cls   = "copy" if is_copy else ("failed" if is_failed else "")
+        status_cls = "st-fail" if is_failed else ("st-ok" if a["status"] == "Succeeded" else "")
+        copy_badge = '<span class="perf-copy-badge">COPY</span>' if is_copy else ''
+        perf_rows.append(
+            f'<tr data-type="{esc(a["activity_type"].lower())}" data-status="{esc(a["status"].lower())}">'
+            f'<td style="color:var(--mut);text-align:right">{rank}</td>'
+            f'<td>{esc(a["activity_name"])}{copy_badge}</td>'
+            f'<td><span class="chip">{"Copy" if is_copy else esc(a["activity_type"])}</span></td>'
+            f'<td style="color:var(--mut);font-size:11px">{esc(a["pipeline_name"])}</td>'
+            f'<td><span class="{status_cls}">{esc(a["status"])}</span></td>'
+            f'<td style="color:var(--mut);font-size:11px;white-space:nowrap">{esc(a["start"])}</td>'
+            f'<td style="white-space:nowrap;font-weight:600">{esc(a["duration"])}</td>'
+            f'<td><div class="dur-bar-wrap"><div class="dur-bar {bar_cls}" style="width:{bar_pct}px"></div></div></td>'
+            f'<td style="text-align:right">{esc(fmt_rows(a["rows_read"]))}</td>'
+            f'<td style="text-align:right">{esc(fmt_rows(a["rows_copied"]))}</td>'
+            f'<td style="text-align:right">{esc(fmt_bytes(a["data_read"]))}</td>'
+            f'<td style="text-align:right">{esc(fmt_bytes(a["data_written"]))}</td>'
+            f'</tr>'
+        )
+    perf_rows_html = '\n'.join(perf_rows) or \
+        '<tr><td colspan="12" style="color:var(--mut);padding:12px">No activity run data available.</td></tr>'
 
     # Status filter counts for the monitor bar
     status_filter_buttons = []
@@ -1627,6 +1777,7 @@ def build_html(data, factory_name, generated, runs=None):
     <div class="tab"        id="tab-irs"        onclick="showTab('irs',this)">Integration Runtimes</div>
     <div class="tab"        id="tab-lineage"    onclick="showTab('lineage',this)">Lineage</div>
     <div class="tab"        id="tab-hierarchy"  onclick="showTab('hierarchy',this)">Hierarchy</div>
+    <div class="tab"        id="tab-perf"       onclick="showTab('perf',this)">&#9201; Activity Performance</div>
   </div>
 
   <!-- OVERVIEW -->
@@ -1765,6 +1916,43 @@ def build_html(data, factory_name, generated, runs=None):
     {hierarchy_html}
   </div>
 
+  <!-- ACTIVITY PERFORMANCE -->
+  <div class="panel" id="p-perf">
+    <p style="font-size:12px;color:var(--mut);margin-bottom:10px">
+      Activities from the most recent 50 completed pipeline runs, ranked by duration.
+      <strong style="color:#60a5fa">Copy</strong> activities include rows and data volume.
+      Use this to find slow activities to optimise.
+    </p>
+    <div class="perf-filter-bar">
+      <button class="perf-btn active" onclick="filterPerf('all',this)">All</button>
+      <button class="perf-btn"        onclick="filterPerf('copy',this)">Copy only</button>
+      <button class="perf-btn"        onclick="filterPerf('failed',this)">Failed only</button>
+      <input id="perf-search" placeholder="Search activity or pipeline…"
+        oninput="filterPerfSearch(this.value)"
+        style="padding:4px 11px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;
+               color:var(--txt);font-size:12px;outline:none;margin-left:4px;width:240px"/>
+    </div>
+    <div class="tw">
+      <table id="perf-tbl">
+        <thead><tr>
+          <th>#</th>
+          <th>Activity</th>
+          <th>Type</th>
+          <th>Pipeline</th>
+          <th>Status</th>
+          <th>Start</th>
+          <th>Duration</th>
+          <th>Bar</th>
+          <th>Rows Read</th>
+          <th>Rows Copied</th>
+          <th>Data Read</th>
+          <th>Data Written</th>
+        </tr></thead>
+        <tbody>{perf_rows_html}</tbody>
+      </table>
+    </div>
+  </div>
+
 </div><!-- /main -->
 </div><!-- /layout -->
 
@@ -1832,12 +2020,13 @@ def main():
     client     = DataFactoryManagementClient(credential, subscription)
 
     print("Fetching metadata…")
-    data = fetch_all(client, resource_group, factory_name)
-    runs = fetch_pipeline_runs(client, resource_group, factory_name, subscription)
+    data          = fetch_all(client, resource_group, factory_name)
+    runs          = fetch_pipeline_runs(client, resource_group, factory_name, subscription)
+    activity_runs = fetch_activity_runs(client, resource_group, factory_name, runs)
 
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
     print("Building HTML…")
-    html = build_html(data, factory_name, generated, runs)
+    html = build_html(data, factory_name, generated, runs, activity_runs=activity_runs)
 
     out = f"/home/thedavidporter/adf_metadata_report_{args.env}.html"
     with open(out, "w", encoding="utf-8") as f:
@@ -1859,12 +2048,14 @@ def main():
     print(f"  Integration Runtimes: {len(data['integration_runtimes'])}")
     print(f"  Pipeline Runs (7d)  : {len(runs)}  [{run_summary}]")
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print(f"  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print(f"  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 
 
 if __name__ == "__main__":

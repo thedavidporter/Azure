@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Azure Databricks Metadata Report — all 3 workspaces in one file.
@@ -336,6 +337,24 @@ def collect_workspace(ws, token):
         d_page += 1
     print(f"{len(dashboards)}", end="  ", flush=True)
 
+    # apps
+    print("apps…", end="", flush=True)
+    apps_raw = api(token, base, "/api/2.0/apps").get("apps", [])
+    apps = [
+        {
+            "name":        a.get("name", ""),
+            "description": a.get("description", ""),
+            "state":       (a.get("status") or {}).get("state", ""),
+            "message":     (a.get("status") or {}).get("message", ""),
+            "creator":     a.get("creator", ""),
+            "url":         a.get("url", ""),
+            "create_time": a.get("create_time", ""),
+            "update_time": a.get("update_time", ""),
+        }
+        for a in apps_raw
+    ]
+    print(f"{len(apps)}", end="  ", flush=True)
+
     # model serving endpoints
     print("serving…", end="", flush=True)
     raw_endpoints = api(token, base, "/api/2.0/serving-endpoints").get("endpoints", [])
@@ -493,6 +512,7 @@ def collect_workspace(ws, token):
         "pipelines":      pipelines,
         "queries":        queries,
         "dashboards":     dashboards,
+        "apps":           apps,
         "serving":        serving,
         "policies":       policies,
         "secret_scopes":  secret_scopes,
@@ -700,6 +720,7 @@ function renderStats(ws){
   document.getElementById('stat-pipelines').textContent  = ws.pipelines.length;
   document.getElementById('stat-queries').textContent    = ws.queries.length;
   document.getElementById('stat-dashboards').textContent = ws.dashboards.length;
+  document.getElementById('stat-apps').textContent       = ws.apps.length;
   document.getElementById('stat-serving').textContent    = ws.serving.length;
   const uc = ws.unity_catalog;
   const ucTables = uc ? uc.catalogs.reduce((a,c)=>a+c.schemas.reduce((b,s)=>b+s.tables.length,0),0) : 0;
@@ -728,6 +749,7 @@ function renderPanel(id){
   if(id==='pipelines')   renderPipelines(ws);
   if(id==='queries')     renderQueries(ws);
   if(id==='dashboards')  renderDashboards(ws);
+  if(id==='apps')        renderApps(ws);
   if(id==='serving')     renderServing(ws);
   if(id==='policies')    renderPolicies(ws);
   if(id==='scopes')      renderScopes(ws);
@@ -920,6 +942,26 @@ function renderDashboards(ws){
     <td class="mut" style="white-space:nowrap;font-size:11px">${esc((d.updated_at||'').slice(0,10))}</td>
   </tr>`).join('') || '<tr><td colspan="4" class="mut" style="padding:12px">No dashboards.</td></tr>';
   document.getElementById('dashboard-count').textContent = `${dashboards.length} of ${ws.dashboards.length}`;
+}
+
+// ── APPS ──────────────────────────────────────────────────────────────────────
+function renderApps(ws){
+  document.getElementById('apps-tbody').innerHTML = ws.apps.map(a=>{
+    const running = a.state === 'RUNNING';
+    const chip = running
+      ? '<span class="chip st-running">RUNNING</span>'
+      : `<span class="chip st-error">${esc(a.state||'UNKNOWN')}</span>`;
+    const link = a.url
+      ? `<a href="${esc(a.url)}" target="_blank" style="color:var(--acc);font-size:11px">${esc(a.url)}</a>`
+      : '<span class="mut">—</span>';
+    return `<tr>
+    <td><b>${esc(a.name)}</b>${a.description ? `<div class="mut" style="font-size:11px">${esc(a.description)}</div>` : ''}</td>
+    <td>${chip}${a.message ? `<div class="mut" style="font-size:10px;margin-top:3px">${esc(a.message)}</div>` : ''}</td>
+    <td>${link}</td>
+    <td class="mut" style="font-size:11px">${esc(a.creator||'—')}</td>
+    <td class="mut" style="white-space:nowrap;font-size:11px">${esc((a.update_time||'').slice(0,10))}</td>
+  </tr>`;
+  }).join('') || '<tr><td colspan="5" class="mut" style="padding:12px">No apps deployed.</td></tr>';
 }
 
 // ── MODEL SERVING ─────────────────────────────────────────────────────────────
@@ -1186,6 +1228,9 @@ def build_html(workspaces_data, generated):
       <div class="sc" onclick="showTab('dashboards')" title="Legacy Databricks SQL Dashboards built from saved queries using the classic dashboard builder. These are separate from the newer Lakeview (AI/BI) dashboards. See the Lakeview card for the modern equivalent.">
         <div class="sc-n" id="stat-dashboards" style="color:var(--cyn)">—</div>
         <div class="sc-l">Dashboards</div></div>
+      <div class="sc" onclick="showTab('apps')" title="Databricks Apps are lightweight web applications hosted directly on the Databricks platform with Entra ID SSO. They run FastAPI, Streamlit, Gradio, or custom Python servers and have access to workspace resources.">
+        <div class="sc-n" id="stat-apps" style="color:var(--acc)">—</div>
+        <div class="sc-l">Apps</div></div>
       <div class="sc" onclick="showTab('serving')" title="Model Serving endpoints host trained ML models (MLflow, Feature Store, or external) as REST APIs for real-time inference. Each endpoint auto-scales compute independently and can serve multiple model versions simultaneously.">
         <div class="sc-n" id="stat-serving" style="color:var(--red)">—</div>
         <div class="sc-l">Model Serving</div></div>
@@ -1214,6 +1259,7 @@ def build_html(workspaces_data, generated):
     <div class="tab" id="tab-pipelines"   onclick="showTab('pipelines')">DLT Pipelines</div>
     <div class="tab" id="tab-queries"     onclick="showTab('queries')">SQL Queries</div>
     <div class="tab" id="tab-dashboards"  onclick="showTab('dashboards')">SQL Dashboards</div>
+    <div class="tab" id="tab-apps"        onclick="showTab('apps')">Apps</div>
     <div class="tab" id="tab-serving"     onclick="showTab('serving')">Model Serving</div>
     <div class="tab" id="tab-policies"    onclick="showTab('policies')">Cluster Policies</div>
     <div class="tab" id="tab-scopes"      onclick="showTab('scopes')">Secret Scopes</div>
@@ -1349,6 +1395,14 @@ def build_html(workspaces_data, generated):
       </table>
     </div>
 
+    <!-- APPS -->
+    <div class="panel" id="p-apps">
+      <table>
+        <thead><tr><th>Name / Description</th><th>State</th><th>URL</th><th>Creator</th><th>Updated</th></tr></thead>
+        <tbody id="apps-tbody"></tbody>
+      </table>
+    </div>
+
     <!-- MODEL SERVING -->
     <div class="panel" id="p-serving">
       <table>
@@ -1456,11 +1510,13 @@ def main():
 
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()
