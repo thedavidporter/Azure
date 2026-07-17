@@ -597,8 +597,16 @@ def qa(qtext, answer_html, audience="all"):
 
 
 def build_html(generated):
-    global _demo_inits
+    global _demo_inits, _HOTSPOTS
     _demo_inits = []
+
+    # load hotspots first — D() is called during Q&A construction below
+    try:
+        with open(HOTSPOTS_PATH, encoding="utf-8") as _f:
+            _HOTSPOTS = json.load(_f)
+    except Exception:
+        _HOTSPOTS = {}
+
     q_and_a = ""
 
     # ── user-provided Q&A ──────────────────────────────────────────────────────
@@ -1133,14 +1141,6 @@ def build_html(generated):
 <p class="tip">Containers that are growing rapidly but not being read by any active pipeline may be accumulating data without a retention policy. Cross-reference with the ADF report to check whether those paths are referenced by any active datasets.</p>""",
         "mgmt"
     )
-
-    # load hotspots
-    global _HOTSPOTS
-    try:
-        with open(HOTSPOTS_PATH, encoding="utf-8") as _f:
-            _HOTSPOTS = json.load(_f)
-    except Exception:
-        _HOTSPOTS = {}
 
     # read spinner names
     try:
