@@ -11,11 +11,17 @@
     "name": "Shared Feedback Persistence",
     "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page."
   },
-    {
+  {
     "date": "2026-07-16",
     "time": "12:00 PM",
     "name": "Alignment of Help Cards on the Index page",
     "description": "The cards on the index page are now grouped in 3 columns to appear more cohesive and less wasted space and scrolling."
+  },
+  {
+    "date": "2026-07-16",
+    "time": "11:30 AM",
+    "name": "ADLS2 Improved Utility",
+    "description": "Improved the ADLS2 to show 6 levels deep into the folders as well as collapsing the side bar upon intial display for better bearings."
   },
   {
     "date": "2026-07-15",
