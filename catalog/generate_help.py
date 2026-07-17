@@ -1133,7 +1133,7 @@ def build_html(generated):
   <a class="back-btn" href="index.html">&#8592; Back to Metadata Marketplace</a>
 
   <h1>Help &amp; Guide</h1>
-  <p class="meta">IDOH Azure Metadata Marketplace &nbsp;&middot;&nbsp; Generated: {generated}</p>
+  <p class="meta">IDOH Azure Metadata Marketplace &nbsp;&middot;&nbsp; Generated: <span id="gen-ts" data-ts="{generated}">&#x21BB; {generated}</span><script>(function(){{var s=document.getElementById('gen-ts'),h=(Date.now()-new Date(s.dataset.ts.replace(' ','T')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
   <!-- OVERVIEW -->
   <h2 id="overview">Overview</h2>
