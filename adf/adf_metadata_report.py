@@ -1753,7 +1753,7 @@ def build_html(data, factory_name, generated, runs=None, activity_runs=None):
 <!-- MAIN -->
 <div class="main">
   <h1>ADF Metadata Report</h1>
-  <p class="sub">Factory: <strong>{esc(factory_name)}</strong> &nbsp;|&nbsp; Generated: {esc(generated)}</p>
+  <p class="sub">Factory: <strong>{esc(factory_name)}</strong> &nbsp;|&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
   <div class="stats">
     <div class="sc" id="card-pipelines" onclick="showTab('pipelines',null)" title="Pipelines are the top-level orchestration workflows in ADF. Each pipeline contains one or more activities and defines what data to move or transform and in what order."><div class="sc-n">{len(pipelines)}</div><div class="sc-l">Pipelines</div></div>

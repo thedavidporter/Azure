@@ -813,7 +813,7 @@ def build_html(env_cfg, schemas, tables, views, procs, columns, generated):
   <div class="main-hdr">
     <h1>Azure SQL Data Warehouse — {esc(env_label)}</h1>
     <p class="sub">{esc(server)}.database.windows.net &nbsp;·&nbsp; {esc(database)}</p>
-    <p class="sub">Generated: {esc(generated)}</p>
+    <p class="sub">Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
     <div class="stats">
       <div class="sc" id="card-overview"  onclick="showTab('overview')"  title="Schemas are logical namespaces that group related tables, views, and procedures by business domain or team. Common patterns: dbo (default), stg (staging), mart (data mart), ref (reference/lookup data).">
@@ -996,11 +996,13 @@ def main():
 
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()

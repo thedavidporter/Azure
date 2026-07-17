@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Azure Logic Apps Metadata Report
@@ -541,7 +542,7 @@ def build_html(workflows, all_runs, conn_list, env_cfg, generated):
 <div class="main">
 <div class="main-hdr">
   <h1>Azure Logic Apps — {esc(label)}</h1>
-  <p class="sub">Resource Group: <strong>{esc(rg)}</strong> &nbsp;|&nbsp; Generated: {esc(generated)}</p>
+  <p class="sub">Resource Group: <strong>{esc(rg)}</strong> &nbsp;|&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
   <div class="stats">
     <div class="sc" id="card-overview"    onclick="showTab('overview')"          title="Total number of Logic App workflows (Standard or Consumption) across all resource groups in this environment. Each workflow is an independent integration process with its own trigger and actions.">
@@ -659,11 +660,13 @@ def main():
     print(f"Saved: {out}")
 
 
-    try:
-        import generate_metadata_index
-        generate_metadata_index.main()
-        print("  Index updated       : index.html")
-    except Exception as exc:
-        print(f"  Warning: could not update index.html: {exc}")
+    if not os.environ.get('PUBLISH_RUNNING'):
+        try:
+            import generate_metadata_index
+            generate_metadata_index.main()
+            print("  Index updated       : index.html")
+        except Exception as exc:
+            print(f"  Warning: could not update index.html: {exc}")
+
 if __name__ == "__main__":
     main()

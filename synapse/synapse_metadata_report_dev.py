@@ -1067,7 +1067,7 @@ def build_html(schemas, objects, columns, fks, deps, defs, row_counts, generated
 <!-- ── MAIN ── -->
 <div class="main">
   <h1>Synapse Metadata Report</h1>
-  <p class="sub">Database: <strong>{esc(DATABASE)}</strong> &nbsp;|&nbsp; Generated: {esc(generated)}</p>
+  <p class="sub">Database: <strong>{esc(DATABASE)}</strong> &nbsp;|&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
   <div class="stats">
     <div class="sc" id="card-overview" onclick="showTab('overview',null)" title="Schemas are logical namespaces that group related database objects (tables, views, procs) together by business domain or team. For example: dbo, stg, mart, ref."><div class="sc-n">{len(schemas)}</div><div class="sc-l">Schemas</div></div>

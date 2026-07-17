@@ -15,7 +15,7 @@ from databricks import sql as dbsql
 
 HOSTNAME  = "adb-5323951998838804.4.azuredatabricks.net"
 HTTP_PATH = "/sql/1.0/warehouses/f32751d7c2e67809"
-TOKEN     = os.environ.get("DATABRICKS_PRD_TOKEN", "")  # set env var or replace with your token
+TOKEN     = "REDACTED_DATABRICKS_TOKEN"
 WORKSPACE = "adb-5323951998838804"
 
 # ── connection ─────────────────────────────────────────────────────────────────

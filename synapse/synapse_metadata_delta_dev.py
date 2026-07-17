@@ -500,7 +500,7 @@ const RC_DATA           = {json.dumps(rc_data,           separators=(',',':'))};
   <p class="sub">
     Database: <strong>{esc(DATABASE)}</strong>
     &nbsp;|&nbsp; Comparing: <strong>{esc(prev_date)}</strong> → <strong>{esc(curr_date)}</strong>
-    &nbsp;|&nbsp; Generated: {esc(generated)}
+    &nbsp;|&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script>
     &nbsp;|&nbsp; <strong>{total_changes:,}</strong> total changes
   </p>
   <div class="stats">{stat_cards}</div>

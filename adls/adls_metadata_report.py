@@ -666,7 +666,7 @@ const LARGE_DATA = {large_json};
 <div class="main">
   <h1>ADLS Gen2 Metadata Report</h1>
   <p class="sub">Subscription: <strong>{esc(subscription)}</strong>
-    &nbsp;|&nbsp; Generated: {esc(generated)}
+    &nbsp;|&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script>
     &nbsp;|&nbsp; <span style="color:var(--mut)">{esc(depth_note)}</span>
   </p>
 

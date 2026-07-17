@@ -1201,7 +1201,7 @@ def build_html(workspaces_data, generated):
   <div class="main-hdr">
     <h1 id="ws-header-name">Azure Databricks — {first["label"]}</h1>
     <p class="sub" id="ws-header-sub">{first["resource_name"]} · {first["url"]}</p>
-    <p class="sub">Generated: {generated}</p>
+    <p class="sub">Generated: <span id="gen-ts" data-ts="{generated}">&#x21BB; {generated}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
     <div class="stats">
       <div class="sc" onclick="showTab('clusters')" title="Interactive and job clusters. Interactive clusters are long-running and shared for notebook development. Job clusters are ephemeral — spun up for a specific job run and terminated when done. Fewer running clusters = lower cost.">

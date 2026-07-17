@@ -1368,7 +1368,7 @@ def build_html(data, generated):
   <div class="main-hdr">
     <h1>Azure Virtual Networks</h1>
     <p class="sub">{"&nbsp;·&nbsp;".join(esc(m["name"]) for m in data["subscriptions"].values())}</p>
-    <p class="sub">Generated: {esc(generated)}</p>
+    <p class="sub">Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
     <div class="stats">
       <div class="sc" id="card-overview"    onclick="showTab('overview')"      title="Virtual Networks (VNets) are the private network isolation boundaries in Azure. All resources inside a VNet can communicate with each other by default. VNets are scoped to a region and segmented into subnets.">

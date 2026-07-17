@@ -465,7 +465,11 @@ function toggleHP(hdr){
 
 // ── init ────────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('gen-time').textContent = GENERATED;
+  const genEl = document.getElementById('gen-time');
+  genEl.textContent = '↻ ' + GENERATED;
+  const h = (Date.now() - new Date(GENERATED.replace(' ','T'))) / 36e5;
+  genEl.style.color = h < 25 ? 'var(--grn)' : h < 168 ? 'var(--yel)' : 'var(--red)';
+  genEl.style.fontWeight = '700';
   document.getElementById('stat-total').textContent   = MACHINES.length;
   document.getElementById('stat-active').textContent  = MACHINES.filter(m=>m.days_ago!==null&&m.days_ago<=30).length;
   document.getElementById('stat-stale').textContent   = MACHINES.filter(m=>m.days_ago===null||m.days_ago>90).length;

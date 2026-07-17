@@ -1426,7 +1426,7 @@ def build_html(data, generated):
 <div class="main">
   <div class="main-hdr">
     <h1>Azure DevOps — {esc(ORG)}</h1>
-    <p class="sub">{len(projects)} projects &nbsp;·&nbsp; Generated: {esc(generated)}</p>
+    <p class="sub">{len(projects)} projects &nbsp;·&nbsp; Generated: <span id="gen-ts" data-ts="{esc(generated)}">&#x21BB; {esc(generated)}</span><script>(function(){{var s=document.getElementById(\'gen-ts\'),h=(Date.now()-new Date(s.dataset.ts.replace(\' \',\'T\')))/36e5;s.style.color=h<25?'var(--grn)':h<168?'var(--yel)':'var(--red)';s.style.fontWeight='700';}})();</script></p>
 
     <div class="stats">
       <div class="sc" id="card-overview"  onclick="showTab('overview')"   title="Git repositories in this Azure DevOps project. Each repo holds the source code, notebooks, pipeline YAML, and configuration for a workload. Repos are the unit of access control — permissions are granted at the repo or branch level.">
