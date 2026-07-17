@@ -27,6 +27,6 @@
     "date": "2026-07-15",
     "time": "2:345 PM",
     "name": "ADF Activity Performance",
-    "description": "Created a new tab inside of the ADF Metadata Report show the performance of activities including start, end, duration, I/O."
+    "description": "Created a new tab inside of the ADF Metadata Report showing the performance of activities including start, end, duration, I/O."
   }
 ]
