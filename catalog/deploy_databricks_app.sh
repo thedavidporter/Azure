@@ -96,3 +96,34 @@ else
   echo "ERROR: bundle deploy failed — reports not updated"
   exit 1
 fi
+
+# ── GitHub sync ───────────────────────────────────────────────────────────────
+AZURE_REPO="$HOME/Azure"
+if [ -d "$AZURE_REPO/.git" ]; then
+  echo ""
+  echo "Syncing to GitHub..."
+  cp "$HOME/generate_metadata_index.py" "$AZURE_REPO/catalog/"
+  cp "$HOME/generate_help.py"           "$AZURE_REPO/catalog/"
+  cp "$HOME/deploy_databricks_app.sh"   "$AZURE_REPO/catalog/"
+  cp "$HOME/changelog.json"             "$AZURE_REPO/catalog/"
+  cp "$HOME/PROJECTS_AND_IDEAS.md"      "$AZURE_REPO/"
+  CHANGED=$(git -C "$AZURE_REPO" diff --name-only HEAD; git -C "$AZURE_REPO" ls-files --others --exclude-standard)
+  if [[ -z "$CHANGED" ]]; then
+    echo "  No changes to push."
+  else
+    git -C "$AZURE_REPO" add \
+      catalog/generate_metadata_index.py \
+      catalog/generate_help.py \
+      catalog/deploy_databricks_app.sh \
+      catalog/changelog.json \
+      PROJECTS_AND_IDEAS.md
+    git -C "$AZURE_REPO" commit -m "$(printf 'Sync catalog — %s\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>' "$(date '+%Y-%m-%d %H:%M')")"
+    if git -C "$AZURE_REPO" push origin main 2>&1; then
+      echo "  Pushed to github.com/thedavidporter/Azure"
+    else
+      echo "  WARN: GitHub push failed — local repo is up to date but remote may be stale"
+    fi
+  fi
+else
+  echo "  WARN: Azure repo not found at $AZURE_REPO — skipping GitHub sync"
+fi
