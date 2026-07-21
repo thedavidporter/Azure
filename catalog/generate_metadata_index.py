@@ -8,6 +8,9 @@ import os
 import sys
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+EASTERN = ZoneInfo("America/New_York")
 
 OUT_FILE           = "/home/thedavidporter/index.html"
 SPINNER_NAMES_PATH = "/home/thedavidporter/spinner_names.json"
@@ -345,10 +348,10 @@ def get_last_refreshed(url):
     if not os.path.exists(local_path):
         return "Never generated", "never", "0"
     raw_mtime = os.path.getmtime(local_path)
-    mtime     = datetime.fromtimestamp(raw_mtime)
-    now       = datetime.now()
+    mtime     = datetime.fromtimestamp(raw_mtime, tz=EASTERN)
+    now       = datetime.now(tz=EASTERN)
     age_h     = (now - mtime).total_seconds() / 3600
-    label     = mtime.strftime("%Y-%m-%d %H:%M")
+    label     = mtime.strftime("%Y-%m-%d %H:%M %Z")
     css       = "stale" if age_h > 25 else ""
     # Integer mtime used as cache-busting query param so browsers always load
     # the latest file after a publish run updates it.
@@ -704,7 +707,7 @@ def main():
     total = None
     if "--running" in sys.argv:
         idx = sys.argv.index("--running")
-        running_since = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else datetime.now().strftime("%Y-%m-%d %H:%M")
+        running_since = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else datetime.now(tz=EASTERN).strftime("%Y-%m-%d %H:%M %Z")
     if "--step" in sys.argv:
         idx = sys.argv.index("--step")
         step = int(sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
@@ -712,7 +715,7 @@ def main():
         idx = sys.argv.index("--total")
         total = int(sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
 
-    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
+    generated = datetime.now(tz=EASTERN).strftime("%Y-%m-%d %H:%M %Z")
     html = build_html(generated, running_since=running_since, step=step, total=total)
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
