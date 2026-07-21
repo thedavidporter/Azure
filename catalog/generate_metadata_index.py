@@ -383,7 +383,7 @@ def build_html(generated, running_since=None, step=None, total=None):
           <div class="card-desc">{item['desc']}</div>
           <div class="card-footer">
             <a class="card-link" href="{versioned_url}" target="_blank" onclick="event.stopPropagation()">Open report ↗</a>
-            <span class="card-refresh{refresh_cls_attr}">↻ {refresh_ts}</span>
+            <span class="card-refresh{refresh_cls_attr}" data-ts="{cache_v}">↻ {refresh_ts}</span>
           </div>
         </div>"""
 
@@ -683,6 +683,15 @@ function fbToggleDeleted(){{
   btn.style.color = fbShowDeleted ? 'var(--acc)' : '';
   fbRenderLog();
 }}
+
+(function(){{
+  const now = Date.now();
+  document.querySelectorAll('.card-refresh[data-ts]').forEach(function(el){{
+    const ageH = (now - parseInt(el.dataset.ts, 10) * 1000) / 3600000;
+    el.classList.remove('stale');
+    if(ageH > 25) el.classList.add('stale');
+  }});
+}})();
 </script>
 
 </body>
