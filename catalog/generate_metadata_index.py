@@ -359,7 +359,7 @@ def get_last_refreshed(url):
     return label, css, str(int(raw_mtime))
 
 
-def build_html(generated, running_since=None, step=None, total=None):
+def build_html(generated, gen_unix=0, running_since=None, step=None, total=None):
     try:
         with open(SPINNER_NAMES_PATH, encoding="utf-8") as _f:
             _spinner_names = json.load(_f)
@@ -435,7 +435,7 @@ def build_html(generated, running_since=None, step=None, total=None):
   <div class="hero">
     <h1>IDOH Metadata Marketplace</h1>
     <p>Centralized metadata documentation for the Office of Data Analytics for Indiana Department of Health.</p>
-    <span class="badge">{'Refreshing&hellip;' if running_since else f'Last published: {generated}'}</span>
+    <span class="badge" id="pub-badge" data-ts="{gen_unix}">{'Refreshing&hellip;' if running_since else f'Last published: {generated}'}</span>
     <br/><a href="help.html" style="display:inline-block;margin-top:14px;font-size:12px;
       color:var(--acc);border:1px solid var(--brd);border-radius:6px;padding:5px 16px;
       text-decoration:none;" title="Open the Help &amp; Guide page">&#10067; Help &amp; Guide</a>
@@ -696,6 +696,13 @@ function fbToggleDeleted(){{
     if(ageH >= 168) el.classList.add('old');
     else if(ageH >= 25) el.classList.add('stale');
   }});
+  const badge = document.getElementById('pub-badge');
+  if(badge && badge.dataset.ts){{
+    const ageH = (now - parseInt(badge.dataset.ts, 10) * 1000) / 3600000;
+    badge.style.color = ageH >= 168 ? 'var(--red)' : ageH >= 25 ? 'var(--yel)' : 'var(--grn)';
+    badge.style.borderColor = badge.style.color;
+    badge.style.fontWeight = '700';
+  }}
 }})();
 </script>
 
@@ -717,8 +724,10 @@ def main():
         idx = sys.argv.index("--total")
         total = int(sys.argv[idx + 1]) if idx + 1 < len(sys.argv) else None
 
-    generated = datetime.now(tz=EASTERN).strftime("%Y-%m-%d %H:%M %Z")
-    html = build_html(generated, running_since=running_since, step=step, total=total)
+    now_dt    = datetime.now(tz=EASTERN)
+    generated = now_dt.strftime("%Y-%m-%d %H:%M %Z")
+    gen_unix  = int(now_dt.timestamp())
+    html = build_html(generated, gen_unix=gen_unix, running_since=running_since, step=step, total=total)
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"Saved: {OUT_FILE}")
