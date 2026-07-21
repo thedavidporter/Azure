@@ -7,6 +7,9 @@ Called automatically by generate_metadata_index.py after index.html is built.
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+EASTERN = ZoneInfo("America/New_York")
 
 OUTPUT_PATH    = "/home/thedavidporter/help.html"
 CHANGELOG_PATH     = "/home/thedavidporter/changelog.json"
@@ -1741,7 +1744,7 @@ function fbToggleDeleted(){{
 
 
 def main():
-    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
+    generated = datetime.now(tz=EASTERN).strftime("%Y-%m-%d %H:%M %Z")
     html = build_html(generated)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
