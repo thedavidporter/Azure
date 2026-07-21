@@ -241,8 +241,9 @@ body{background:var(--bg);color:var(--txt);font:14px/1.6 'Segoe UI',system-ui,sa
 .card-desc{font-size:12px;color:var(--mut);line-height:1.5}
 .card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
 .card-link{font-size:11px;color:var(--acc)}
-.card-refresh{font-size:10px;color:var(--grn)}
+.card-refresh{font-size:10px;font-weight:700;color:var(--grn)}
 .card-refresh.stale{color:var(--yel)}
+.card-refresh.old{color:var(--red)}
 .card-refresh.never{color:var(--red)}
 .footer{text-align:center;color:var(--mut);font-size:11px;margin-top:48px;
   padding-top:20px;border-top:1px solid var(--brd)}
@@ -691,8 +692,9 @@ function fbToggleDeleted(){{
   const now = Date.now();
   document.querySelectorAll('.card-refresh[data-ts]').forEach(function(el){{
     const ageH = (now - parseInt(el.dataset.ts, 10) * 1000) / 3600000;
-    el.classList.remove('stale');
-    if(ageH > 25) el.classList.add('stale');
+    el.classList.remove('stale','old');
+    if(ageH >= 168) el.classList.add('old');
+    else if(ageH >= 25) el.classList.add('stale');
   }});
 }})();
 </script>
