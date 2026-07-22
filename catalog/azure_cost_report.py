@@ -25,6 +25,32 @@ SUBS = {
 SUB_SHORT = {IDOH_ID: "IDOH", SHARED_ID: "Shared"}
 SUB_COLOR = {IDOH_ID: "#38bdf8", SHARED_ID: "#a78bfa"}
 
+# Map ServiceTier substrings → purpose label for the VM detail pop-up.
+# Add or edit entries here as the VM fleet changes.
+VM_PURPOSE_MAP = [
+    ("FSv2 Series Windows",  "AVD Session Host"),
+    ("Dv3 Series",           "SHIR / DevOps Agent"),
+    ("Dsv3 Series",          "SHIR / DevOps Agent"),
+    ("Dsv5 Series",          "SHIR / DevOps Agent"),
+    ("Dv5 Series",           "SHIR / DevOps Agent"),
+    ("Dsv4 Series",          "SHIR / DevOps Agent"),
+    ("Dv4 Series",           "SHIR / DevOps Agent"),
+    ("Esv5 Series",          "Synapse / Data"),
+    ("Ev5 Series",           "Synapse / Data"),
+    ("Esv3 Series",          "Synapse / Data"),
+    ("Ev3 Series",           "Synapse / Data"),
+    ("BS Series",            "Dev / Utility"),
+    ("Bsv2 Series",          "Dev / Utility"),
+    ("Bas Series",           "Dev / Utility"),
+]
+
+def _vm_purpose(service_tier: str) -> str:
+    for pattern, label in VM_PURPOSE_MAP:
+        if pattern.lower() in service_tier.lower():
+            return label
+    return "—"
+
+
 CATEGORY_MAP = {
     "Virtual Machines":              "Compute & Virtual Desktop",
     "Azure Kubernetes Service":      "Compute & Virtual Desktop",
@@ -356,6 +382,16 @@ def build_opp_details(detail_raw):
     # ── VM / AVD ──────────────────────────────────────────────────────────────
     vm_rows = detail_raw.get("vm_shared", [])
     total_vm = sum(float(r.get("Cost",0) or 0) for r in vm_rows)
+
+    def vm_rows_table(raw_rows, total):
+        out = []
+        for r in raw_rows:
+            cost    = float(r.get("Cost", 0) or 0)
+            pct     = f"{cost/total*100:.1f}%" if total else "—"
+            purpose = _vm_purpose(r.get("ServiceTier", ""))
+            out.append([r.get("Meter",""), purpose, r.get("ServiceTier",""), f"${cost:,.2f}", pct])
+        return out
+
     details["vm"] = {
         "title":   "VM Meter Breakdown — Shared Subscription",
         "explain": (
@@ -365,8 +401,8 @@ def build_opp_details(detail_raw):
             "Purchasing 1-year Reserved Instances for those sizes locks in a ~35% lower hourly "
             "rate. Nothing changes for the VMs or the users — only the billing rate."
         ),
-        "headers": ["VM Size", "Series / OS", "MTD Cost", "% of VMs"],
-        "rows":    rows_table(vm_rows, total_vm),
+        "headers": ["VM Size", "Purpose", "Series / OS", "MTD Cost", "% of VMs"],
+        "rows":    vm_rows_table(vm_rows, total_vm),
         "note":    f"All {len(vm_rows)} meter lines shown · Total ${total_vm:,.2f} MTD · PricingModel: OnDemand",
     }
 
