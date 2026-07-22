@@ -1,5 +1,35 @@
 [
   {
+    "date": "2026-07-21",
+    "time": "3:20 PM",
+    "name": "Excel Download for Security Groups Report",
+    "description": "An ⬇ Excel export button is available for security group detail dialog to streamline copy/paste of the dialog."
+  },
+  {
+    "date": "2026-07-21",
+    "time": "2:20 PM",
+    "name": "Curated Additional Data Catalog Sources",
+    "description": "Included the DEVOPS Wiki pages to define additional data sources in the synapse data warehouse."
+  },
+  {
+    "date": "2026-07-21",
+    "time": "1:20 PM",
+    "name": "Azure Security Groups and Access Report Includes Local Databricks Users",
+    "description": "This report now includes the Databricks local account users.  These are users setup directly in Databricks and not in Azure Security Groups."
+  },
+  {
+    "date": "2026-07-21",
+    "time": "1:10 PM",
+    "name": "All Reports designate timezone",
+    "description": "Reports now indicate on the refresh date and time the timezone.  In most instances it will be EDT or EST (with or without daylight savings)."
+  },
+  {
+    "date": "2026-07-21",
+    "time": "1:00 PM",
+    "name": "Schema Pills in Data Catalog",
+    "description": "Now you can click on a schema from the Data Catalog report and a new page will open in the Synapse Metadata Report at the schema for inspection."
+  },
+  {
     "date": "2026-07-17",
     "time": "2:23 PM",
     "name": "Timestamp Color Coding",
