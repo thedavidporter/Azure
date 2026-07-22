@@ -183,6 +183,31 @@ def fetch_trend(token, sub_id, months=6):
     return result
 
 
+def fetch_all_meters(token, sub_id):
+    """Fetch every ServiceName + Meter + ServiceTier row MTD — filter in Python."""
+    return cm_query(token, sub_id, {
+        "type": "ActualCost",
+        "dataSet": {
+            "granularity": "None",
+            "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
+            "grouping": [
+                {"type": "Dimension", "name": "ServiceName"},
+                {"type": "Dimension", "name": "Meter"},
+                {"type": "Dimension", "name": "ServiceTier"},
+            ]
+        },
+        "timeframe": "BillingMonthToDate",
+    })
+
+
+def filter_meters(all_rows, service_name):
+    return sorted(
+        [r for r in all_rows
+         if r.get("ServiceName", "") == service_name and float(r.get("Cost", 0) or 0) > 0.5],
+        key=lambda x: -float(x.get("Cost", 0) or 0)
+    )
+
+
 # ── Data processing ────────────────────────────────────────────────────────────
 
 def process(mtd_rows, last_rows):
@@ -249,7 +274,6 @@ def compute_opportunities(sd):
     idoh_od   = sd[IDOH_ID]["on_demand_svc"]
     shared_od = sd[SHARED_ID]["on_demand_svc"]
 
-    # Shared VMs (AVD FSv2 Windows hosts) — 35% RI savings
     vm = shared_od.get("Virtual Machines", 0)
     if vm > 200:
         opps.append({
@@ -259,9 +283,9 @@ def compute_opportunities(sd):
             "savings":     round(vm * 0.35),
             "action":      "Purchase 1-year VM Reserved Instances for FSv2/Dv3 Windows",
             "effort":      "Low",
+            "detail_key":  "vm",
         })
 
-    # Databricks savings plan — 20%
     db = idoh_od.get("Azure Databricks", 0)
     if db > 200:
         opps.append({
@@ -271,9 +295,9 @@ def compute_opportunities(sd):
             "savings":     round(db * 0.20),
             "action":      "Purchase 1-year Databricks compute savings plan",
             "effort":      "Low",
+            "detail_key":  "db",
         })
 
-    # Azure Firewall commitment — 20%
     fw = shared_od.get("Azure Firewall", 0)
     if fw > 200:
         opps.append({
@@ -283,9 +307,9 @@ def compute_opportunities(sd):
             "savings":     round(fw * 0.20),
             "action":      "Switch to Azure Firewall 1-year commitment pricing",
             "effort":      "Low",
+            "detail_key":  "fw",
         })
 
-    # Log Analytics commitment tier — 30% for high-volume ingestion
     la_total = (idoh_od.get("Log Analytics", 0) + shared_od.get("Log Analytics", 0))
     if la_total > 150:
         opps.append({
@@ -295,9 +319,9 @@ def compute_opportunities(sd):
             "savings":     round(la_total * 0.30),
             "action":      "Switch from Pay-As-You-Go to daily GB commitment tier",
             "effort":      "Low",
+            "detail_key":  "la",
         })
 
-    # Synapse expansion RI — only flag if Shared has any Synapse on-demand
     syn_shared = shared_od.get("Azure Synapse Analytics", 0)
     if syn_shared > 200:
         opps.append({
@@ -307,10 +331,106 @@ def compute_opportunities(sd):
             "savings":     round(syn_shared * 0.37),
             "action":      "Purchase Synapse Dedicated SQL pool Reserved Capacity (1-year)",
             "effort":      "Low",
+            "detail_key":  "syn",
         })
 
-    # Sort by est. savings descending
     return sorted(opps, key=lambda x: -x["savings"])
+
+
+def build_opp_details(detail_raw):
+    """Build JSON-serialisable detail dicts for each savings opportunity pop-up."""
+
+    def rows_table(raw_rows, total, sub_label=None):
+        out = []
+        for r in raw_rows:
+            cost = float(r.get("Cost", 0) or 0)
+            pct  = f"{cost/total*100:.1f}%" if total else "—"
+            row  = [r.get("Meter",""), r.get("ServiceTier",""), f"${cost:,.2f}", pct]
+            if sub_label:
+                row.insert(2, sub_label)
+            out.append(row)
+        return out
+
+    details = {}
+
+    # ── VM / AVD ──────────────────────────────────────────────────────────────
+    vm_rows = detail_raw.get("vm_shared", [])
+    total_vm = sum(float(r.get("Cost",0) or 0) for r in vm_rows)
+    details["vm"] = {
+        "title":   "VM Meter Breakdown — Shared Subscription",
+        "explain": (
+            "Every VM listed below is billed at full on-demand (pay-as-you-go) rates — "
+            "no Reserved Instances are applied. The <strong>FSv2 Series Windows</strong> rows "
+            "are the AVD session hosts your staff log into as virtual desktops. "
+            "Purchasing 1-year Reserved Instances for those sizes locks in a ~35% lower hourly "
+            "rate. Nothing changes for the VMs or the users — only the billing rate."
+        ),
+        "headers": ["VM Size", "Series / OS", "MTD Cost", "% of VMs"],
+        "rows":    rows_table(vm_rows, total_vm),
+        "note":    f"All {len(vm_rows)} meter lines shown · Total ${total_vm:,.2f} MTD · PricingModel: OnDemand",
+    }
+
+    # ── Databricks ────────────────────────────────────────────────────────────
+    db_rows = detail_raw.get("db_idoh", [])
+    total_db = sum(float(r.get("Cost",0) or 0) for r in db_rows)
+    details["db"] = {
+        "title":   "Databricks Meter Breakdown — IDOH Subscription",
+        "explain": (
+            "All Databricks compute is billed on-demand (no savings plan applied). "
+            "A <strong>1-year Databricks Savings Plan</strong> commits to a fixed $/hour of "
+            "DBU compute and the discount applies automatically across all clusters and job "
+            "runs — no changes to workloads, notebooks, or pipelines required."
+        ),
+        "headers": ["Meter", "Service Tier", "MTD Cost", "% of Databricks"],
+        "rows":    rows_table(db_rows, total_db),
+        "note":    f"All {len(db_rows)} meter lines shown · Total ${total_db:,.2f} MTD · PricingModel: OnDemand",
+    }
+
+    # ── Firewall ──────────────────────────────────────────────────────────────
+    fw_rows = detail_raw.get("fw_shared", [])
+    total_fw = sum(float(r.get("Cost",0) or 0) for r in fw_rows)
+    details["fw"] = {
+        "title":   "Azure Firewall Meter Breakdown — Shared Subscription",
+        "explain": (
+            "Azure Firewall charges for two things: <strong>deployment hours</strong> "
+            "(a fixed cost per hour the firewall exists, regardless of traffic) and "
+            "<strong>data processed</strong> (per GB inspected). Commitment pricing applies "
+            "a ~20% discount to the deployment hour component only — data processing stays "
+            "pay-as-you-go. No firewall rules, policies, or traffic routing change."
+        ),
+        "headers": ["Meter", "Service Tier", "MTD Cost", "% of Firewall"],
+        "rows":    rows_table(fw_rows, total_fw),
+        "note":    f"All {len(fw_rows)} meter lines shown · Total ${total_fw:,.2f} MTD · PricingModel: OnDemand",
+    }
+
+    # ── Log Analytics ─────────────────────────────────────────────────────────
+    la_idoh   = detail_raw.get("la_idoh",   [])
+    la_shared = detail_raw.get("la_shared", [])
+    total_la  = sum(float(r.get("Cost",0) or 0) for r in la_idoh + la_shared)
+    la_rows   = []
+    for r in la_idoh:
+        cost = float(r.get("Cost",0) or 0)
+        pct  = f"{cost/total_la*100:.1f}%" if total_la else "—"
+        la_rows.append([r.get("Meter",""), "IDOH", r.get("ServiceTier",""), f"${cost:,.2f}", pct])
+    for r in la_shared:
+        cost = float(r.get("Cost",0) or 0)
+        pct  = f"{cost/total_la*100:.1f}%" if total_la else "—"
+        la_rows.append([r.get("Meter",""), "Shared", r.get("ServiceTier",""), f"${cost:,.2f}", pct])
+    la_rows.sort(key=lambda x: -float(x[3].replace("$","").replace(",","")))
+    details["la"] = {
+        "title":   "Log Analytics Meter Breakdown — Both Subscriptions",
+        "explain": (
+            "Log Analytics charges per GB of data ingested. Above <strong>100 GB/day</strong> "
+            "a commitment tier reduces the per-GB price by 25–30% with no changes to what is "
+            "logged, how long it is retained, or how queries run. Each workspace can be switched "
+            "to commitment pricing independently — workspaces in both subscriptions are eligible."
+        ),
+        "headers": ["Meter", "Subscription", "Service Tier", "MTD Cost", "% of LA Total"],
+        "rows":    la_rows,
+        "note":    f"Total ${total_la:,.2f} MTD · PricingModel: OnDemand",
+    }
+
+    return details
 
 
 def compute_flags(sd, days_elapsed, days_in_month):
@@ -384,7 +504,7 @@ def esc(s):
 
 def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
                sd, combined_cats, combined_total, combined_last,
-               projected, opportunities, flags,
+               projected, opportunities, opp_details, flags,
                trend_labels, trend_idoh, trend_shared, trend_combined):
 
     idoh_total   = sd[IDOH_ID]["grand_total"]
@@ -451,11 +571,14 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
         dot_colors = ["#ef4444","#f97316","#f59e0b","#facc15","#a3e635"]
         dot_color  = dot_colors[min(i, len(dot_colors)-1)]
         bg, fg = EFFORT_COLORS.get(o["effort"], ("#1e1e1e","#9ca3af"))
+        dk = o.get("detail_key", "")
+        detail_btn = (f' <button class="opp-info-btn" onclick="openOppDetail(\'{dk}\')" '
+                      f'title="See underlying data">&#x24D8; Details</button>') if dk else ""
         opp_rows_html += f"""
         <tr>
           <td><span class="pri-dot" style="background:{dot_color}"></span></td>
           <td>
-            <strong>{esc(o['opportunity'])}</strong>
+            <strong>{esc(o['opportunity'])}</strong>{detail_btn}
             <span class="sub-text">{esc(o['details'])}</span>
           </td>
           <td>${o['current']:,.0f}/mo</td>
@@ -490,6 +613,9 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
         ri_html = (f'<div class="ri-active">&#x2713; Reserved Instance active on '
                    f'<strong>Synapse Dedicated SQL Pool (IDOH)</strong> &nbsp;·&nbsp; '
                    f'Est. <strong>${est_ri_save:,.0f}/mo</strong> savings vs on-demand</div>')
+
+    # ── Opportunity detail JSON ────────────────────────────────────────────────
+    opp_details_js = json.dumps(opp_details)
 
     # ── Chart.js JSON ──────────────────────────────────────────────────────────
     tl_js  = json.dumps(trend_labels)
@@ -584,6 +710,43 @@ tr:hover td{{background:var(--sur2)}}
 
 /* gen-ts */
 .gen-ts-wrap{{font-size:11px;white-space:nowrap}}
+
+/* opp detail button */
+.opp-info-btn{{display:inline-flex;align-items:center;gap:3px;margin-left:8px;
+  padding:2px 8px;border-radius:4px;border:1px solid var(--brd);background:var(--sur2);
+  color:var(--cyn);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;
+  vertical-align:middle;transition:border-color .12s,background .12s}}
+.opp-info-btn:hover{{border-color:var(--cyn);background:#0c2a35}}
+
+/* opportunity detail modal */
+.opp-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:500;align-items:center;justify-content:center;padding:24px}}
+.opp-overlay.open{{display:flex}}
+.opp-box{{background:var(--sur);border:1px solid var(--brd);border-radius:12px;
+  max-width:780px;width:100%;max-height:85vh;overflow-y:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,.6)}}
+.opp-box-hdr{{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:12px;padding:18px 20px 14px;border-bottom:1px solid var(--brd)}}
+.opp-box-title{{font-size:14px;font-weight:800;color:var(--txt);line-height:1.3}}
+.opp-box-close{{background:none;border:1px solid var(--brd);border-radius:6px;
+  color:var(--mut);font-size:14px;cursor:pointer;padding:2px 9px;flex-shrink:0;
+  font-family:inherit;transition:border-color .12s,color .12s}}
+.opp-box-close:hover{{border-color:var(--red);color:var(--red)}}
+.opp-box-explain{{padding:14px 20px;font-size:12px;color:var(--mut);line-height:1.7;
+  border-bottom:1px solid var(--brd)}}
+.opp-box-explain strong{{color:var(--txt)}}
+.opp-box-body{{padding:16px 20px}}
+.opp-box-note{{font-size:10px;color:var(--mut);margin-top:12px;padding-top:8px;
+  border-top:1px solid var(--brd)}}
+.opp-tbl{{width:100%;border-collapse:collapse;font-size:12px}}
+.opp-tbl th{{background:var(--sur2);padding:7px 10px;text-align:left;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--mut);border-bottom:2px solid var(--brd);white-space:nowrap}}
+.opp-tbl td{{padding:8px 10px;border-bottom:1px solid var(--brd);vertical-align:middle}}
+.opp-tbl tr:last-child td{{border-bottom:none}}
+.opp-tbl tr:hover td{{background:var(--sur2)}}
+.opp-tbl .cost-col{{font-weight:700;color:var(--txt);text-align:right}}
+.opp-tbl .pct-col{{color:var(--mut);text-align:right}}
 
 /* footer */
 .footer{{text-align:center;padding:20px;color:var(--mut);font-size:11px;border-top:1px solid var(--brd);margin-top:32px}}
@@ -703,6 +866,66 @@ tr:hover td{{background:var(--sur2)}}
 <div class="footer">
   IDOH Azure Metadata Marketplace &nbsp;&middot;&nbsp; Azure Cost Report &nbsp;&middot;&nbsp; Source: Azure Cost Management API
 </div>
+
+<!-- ── Savings Opportunity Detail Modal ── -->
+<div class="opp-overlay" id="opp-overlay" onclick="if(event.target===this)closeOppDetail()">
+  <div class="opp-box">
+    <div class="opp-box-hdr">
+      <div class="opp-box-title" id="opp-box-title"></div>
+      <button class="opp-box-close" onclick="closeOppDetail()">&#x2715;</button>
+    </div>
+    <div class="opp-box-explain" id="opp-box-explain"></div>
+    <div class="opp-box-body">
+      <table class="opp-tbl" id="opp-box-tbl"></table>
+      <div class="opp-box-note" id="opp-box-note"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPP_DETAILS = {opp_details_js};
+
+function openOppDetail(key) {{
+  const d = OPP_DETAILS[key];
+  if (!d) return;
+  document.getElementById('opp-box-title').textContent   = d.title;
+  document.getElementById('opp-box-explain').innerHTML   = d.explain;
+  document.getElementById('opp-box-note').textContent    = d.note || '';
+
+  // determine which columns are cost/pct by position from end
+  const headers = d.headers;
+  const costIdx = headers.length - 2;  // second-to-last = cost
+  const pctIdx  = headers.length - 1;  // last = %
+
+  let html = '<thead><tr>' +
+    headers.map((h, i) => {{
+      let cls = '';
+      if (i === costIdx) cls = ' style="text-align:right"';
+      if (i === pctIdx)  cls = ' style="text-align:right"';
+      return `<th${{cls}}>${{h}}</th>`;
+    }}).join('') + '</tr></thead><tbody>';
+
+  d.rows.forEach(row => {{
+    html += '<tr>' + row.map((cell, i) => {{
+      let cls = '';
+      if (i === costIdx) cls = ' class="cost-col"';
+      if (i === pctIdx)  cls = ' class="pct-col"';
+      return `<td${{cls}}>${{cell}}</td>`;
+    }}).join('') + '</tr>';
+  }});
+  html += '</tbody>';
+  document.getElementById('opp-box-tbl').innerHTML = html;
+  document.getElementById('opp-overlay').classList.add('open');
+}}
+
+function closeOppDetail() {{
+  document.getElementById('opp-overlay').classList.remove('open');
+}}
+
+document.addEventListener('keydown', e => {{
+  if (e.key === 'Escape') closeOppDetail();
+}});
+</script>
 
 <script>
 (function(){{
@@ -858,6 +1081,29 @@ def main():
     flags         = compute_flags(sd, days_elapsed, days_in_mo)
     trend_labels, trend_idoh, trend_shared, trend_combined = build_trend_data(raw["trend"])
 
+    print("Fetching meter-level detail (2 calls — one per subscription)...", flush=True)
+    meters_idoh, meters_shared = [], []
+    try:
+        meters_idoh   = fetch_all_meters(token, IDOH_ID)
+        print(f"  IDOH meters: {len(meters_idoh)} rows", flush=True)
+    except Exception as e:
+        print(f"  WARN: meters/IDOH: {e}", flush=True)
+    try:
+        meters_shared = fetch_all_meters(token, SHARED_ID)
+        print(f"  Shared meters: {len(meters_shared)} rows", flush=True)
+    except Exception as e:
+        print(f"  WARN: meters/Shared: {e}", flush=True)
+
+    detail_raw = {
+        "vm_shared": filter_meters(meters_shared, "Virtual Machines"),
+        "db_idoh":   filter_meters(meters_idoh,   "Azure Databricks"),
+        "fw_shared": filter_meters(meters_shared, "Azure Firewall"),
+        "la_idoh":   filter_meters(meters_idoh,   "Log Analytics"),
+        "la_shared": filter_meters(meters_shared, "Log Analytics"),
+    }
+
+    opp_details = build_opp_details(detail_raw)
+
     print("Building HTML...", flush=True)
     html = build_html(
         generated       = generated,
@@ -871,6 +1117,7 @@ def main():
         combined_last   = combined_last,
         projected       = projected,
         opportunities   = opportunities,
+        opp_details     = opp_details,
         flags           = flags,
         trend_labels    = trend_labels,
         trend_idoh      = trend_idoh,
