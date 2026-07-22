@@ -175,6 +175,18 @@ REPORTS = [
         ],
     },
     {
+        "category": "Azure Cost Management",
+        "icon": "💰",
+        "items": [
+            {
+                "title": "Executive Cost Report",
+                "env": "ALL",
+                "desc": "Month-to-date spend, projected month-end, and 6-month trend across ECAE IDOH Production and ECAE Shared Production. Spend broken down by business category with identified savings opportunities and items requiring attention.",
+                "url":  "azure_cost_report.html",
+            },
+        ],
+    },
+    {
         "category": "Azure DevOps",
         "icon": "🔧",
         "items": [

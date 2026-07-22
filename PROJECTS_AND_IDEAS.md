@@ -65,6 +65,7 @@ Add entries at the top of each section so the newest items are first.
 
 | Date | Item |
 |------|------|
+| 2026-07-22 | Azure Cost Report — new executive-facing HTML report (`azure_cost_report.py`) covering MTD spend, projected month-end, 6-month trend chart (Chart.js), spend by business category (CSS bars), savings opportunities table (RI/savings plan/commitment estimates), and flagged items; covers ECAE IDOH Production + ECAE Shared Production only; added "Azure Cost Management" card to Marketplace index; added to deploy script GitHub sync; deployed |
 | 2026-07-21 | Data Catalog — schema pills in dataset modal now have PRD↗ and DEV↗ links; clicking opens Synapse metadata report filtered directly to that schema (All Objects tab pre-filtered via `?schema=` URL param + `filterBySchema()` on load); deployed |
 | 2026-07-21 | All reports — date/time stamps now include timezone label (EDT/EST); switched from naive local time to `zoneinfo.ZoneInfo("America/New_York")` in generate_metadata_index.py, azure_security_groups_report.py, and generate_data_catalog.py; `%Z` format renders EDT in summer and EST in winter automatically; deployed |
 | 2026-07-21 | Azure Security Groups report — moved 🟠 workspace cards into the Databricks chip filter (appear alongside 2 security groups when Databricks chip is active); sidebar IZ-DEV/DEV/PRD buttons now clickable — each shows just that workspace card with a Clear link; no always-on cards at top; deployed |

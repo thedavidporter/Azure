@@ -111,6 +111,7 @@ if [ -d "$AZURE_REPO/.git" ]; then
   cp "$HOME/changelog.json"             "$AZURE_REPO/catalog/"
   cp "$HOME/spinner_names.json"         "$AZURE_REPO/catalog/"
   cp "$HOME/hotspots.json"              "$AZURE_REPO/catalog/"
+  cp "$HOME/azure_cost_report.py"       "$AZURE_REPO/catalog/"
   cp "$HOME/PROJECTS_AND_IDEAS.md"      "$AZURE_REPO/"
   CHANGED=$(git -C "$AZURE_REPO" diff --name-only HEAD; git -C "$AZURE_REPO" ls-files --others --exclude-standard)
   if [[ -z "$CHANGED" ]]; then
@@ -123,6 +124,7 @@ if [ -d "$AZURE_REPO/.git" ]; then
       catalog/changelog.json \
       catalog/spinner_names.json \
       catalog/hotspots.json \
+      catalog/azure_cost_report.py \
       PROJECTS_AND_IDEAS.md
     git -C "$AZURE_REPO" commit -m "$(printf 'Sync catalog — %s\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>' "$(date '+%Y-%m-%d %H:%M')")"
     if git -C "$AZURE_REPO" push origin main 2>&1; then
