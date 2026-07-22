@@ -126,7 +126,7 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .cl-name{font-weight:700;font-size:13px;margin-bottom:3px}
 .cl-name a{color:var(--cyn);text-decoration:none}
 .cl-name a:hover{text-decoration:underline}
-.cl-name.no-link{color:var(--mut);font-style:italic}
+.cl-name.no-link{color:var(--cyn)}
 .cl-desc{font-size:12px;color:var(--mut);line-height:1.5}
 
 /* feedback spinner */
