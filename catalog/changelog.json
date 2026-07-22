@@ -3,78 +3,91 @@
     "date": "2026-07-21",
     "time": "3:20 PM",
     "name": "Excel Download for Security Groups Report",
-    "description": "An ⬇ Excel export button is available for security group detail dialog to streamline copy/paste of the dialog."
+    "description": "An ⬇ Excel export button is available for security group detail dialog to streamline copy/paste of the dialog.",
+    "url": "azure_security_groups_report.html"
   },
   {
     "date": "2026-07-21",
     "time": "2:20 PM",
     "name": "Curated Additional Data Catalog Sources",
-    "description": "Included the DEVOPS Wiki pages to define additional data sources in the synapse data warehouse."
+    "description": "Included the DEVOPS Wiki pages to define additional data sources in the synapse data warehouse.",
+    "url": "data_catalog.html"
   },
   {
     "date": "2026-07-21",
     "time": "1:20 PM",
     "name": "Azure Security Groups and Access Report Includes Local Databricks Users",
-    "description": "This report now includes the Databricks local account users.  These are users setup directly in Databricks and not in Azure Security Groups."
+    "description": "This report now includes the Databricks local account users.  These are users setup directly in Databricks and not in Azure Security Groups.",
+    "url": "azure_security_groups_report.html"
   },
   {
     "date": "2026-07-21",
     "time": "1:10 PM",
-    "name": "All Reports designate timezone",
-    "description": "Reports now indicate on the refresh date and time the timezone.  In most instances it will be EDT or EST (with or without daylight savings)."
+    "name": "All Reports Designate Timezone",
+    "description": "Reports now indicate on the refresh date and time the timezone.  In most instances it will be EDT or EST (with or without daylight savings).",
+    "url": ""
   },
   {
     "date": "2026-07-21",
     "time": "1:00 PM",
     "name": "Schema Pills in Data Catalog",
-    "description": "Now you can click on a schema from the Data Catalog report and a new page will open in the Synapse Metadata Report at the schema for inspection."
+    "description": "Now you can click on a schema from the Data Catalog report and a new page will open in the Synapse Metadata Report at the schema for inspection.",
+    "url": "data_catalog.html"
   },
   {
     "date": "2026-07-17",
     "time": "2:23 PM",
     "name": "Timestamp Color Coding",
-    "description": "Each report is now colored coded green, yellow and red to indicate how fresh the report is as reflected on the main IDOH Metadata Marketplace page."
+    "description": "Each report is now colored coded green, yellow and red to indicate how fresh the report is as reflected on the main IDOH Metadata Marketplace page.",
+    "url": "index.html"
   },
   {
     "date": "2026-07-17",
     "time": "1:00 PM",
     "name": "Shared Feedback Persistence",
-    "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page."
+    "description": "Feedback and suggestions now save to a Databricks Delta table and are visible to all users in real time. Entries from both the Index and Help pages appear in a single shared log tagged with their source page.",
+    "url": ""
   },
   {
     "date": "2026-07-16",
     "time": "12:00 PM",
-    "name": "Alignment of Help Cards on the Index page",
-    "description": "The cards on the index page are now grouped in 3 columns to appear more cohesive and less wasted space and scrolling."
+    "name": "Alignment of Help Cards on the Index Page",
+    "description": "The cards on the index page are now grouped in 3 columns to appear more cohesive and less wasted space and scrolling.",
+    "url": "index.html"
   },
   {
     "date": "2026-07-16",
     "time": "11:30 AM",
     "name": "ADLS2 Improved Utility",
-    "description": "Improved the ADLS2 to show 6 levels deep into the folders as well as collapsing the side bar upon intial display for better bearings."
+    "description": "Improved the ADLS2 to show 6 levels deep into the folders as well as collapsing the side bar upon intial display for better bearings.",
+    "url": "adls_metadata_report.html"
   },
   {
     "date": "2026-07-15",
     "time": "2:00 PM",
     "name": "Select Table Columns",
-    "description": "There is a new tab called Select which will show you a simple query statement of all the columns in the corresponding table."
+    "description": "There is a new tab called Select which will show you a simple query statement of all the columns in the corresponding table.",
+    "url": "synapse_metadata_report_dev.html"
   },
   {
     "date": "2026-07-15",
     "time": "2:30 PM",
     "name": "Correct Datatypes on Synapse Tables",
-    "description": "Remove the length field for INT and BIGINT on column descriptions."
+    "description": "Remove the length field for INT and BIGINT on column descriptions.",
+    "url": "synapse_metadata_report_dev.html"
   },
   {
     "date": "2026-07-15",
     "time": "2:30 PM",
-    "name": "Synapse DDL Improvemnt",
-    "description": "Included missing distribution and indexing of table descriptions."
+    "name": "Synapse DDL Improvement",
+    "description": "Included missing distribution and indexing of table descriptions.",
+    "url": "synapse_metadata_report_dev.html"
   },
   {
     "date": "2026-07-15",
     "time": "2:45 PM",
     "name": "ADF Activity Performance",
-    "description": "Created a new tab inside of the ADF Metadata Report showing the performance of activities including start, end, duration, I/O."
+    "description": "Created a new tab inside of the ADF Metadata Report showing the performance of activities including start, end, duration, I/O.",
+    "url": "adf_metadata_report_dev.html"
   }
 ]

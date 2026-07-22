@@ -123,7 +123,10 @@ code{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;
 .cl-entry{padding:10px 0;border-bottom:1px solid var(--brd)}
 .cl-entry:last-child{border-bottom:none}
 .cl-meta{font-size:11px;color:var(--mut);margin-bottom:3px}
-.cl-name{font-weight:700;font-size:13px;color:var(--cyn);margin-bottom:3px}
+.cl-name{font-weight:700;font-size:13px;margin-bottom:3px}
+.cl-name a{color:var(--cyn);text-decoration:none}
+.cl-name a:hover{text-decoration:underline}
+.cl-name.no-link{color:var(--mut);font-style:italic}
 .cl-desc{font-size:12px;color:var(--mut);line-height:1.5}
 
 /* feedback spinner */
@@ -1192,9 +1195,15 @@ def build_html(generated):
     except Exception:
         _cl_entries = []
     def _cl_row(e):
+        url  = e.get("url", "").strip()
+        name = e.get("name", "")
+        if url:
+            name_html = f'<div class="cl-name"><a href="{url}" target="_blank">{name} ↗</a></div>'
+        else:
+            name_html = f'<div class="cl-name no-link">{name}</div>'
         return (f'    <div class="cl-entry">'
                 f'<div class="cl-meta">{e.get("date","")} &nbsp;·&nbsp; {e.get("time","")}</div>'
-                f'<div class="cl-name">{e.get("name","")}</div>'
+                f'{name_html}'
                 f'<div class="cl-desc">{e.get("description","")}</div>'
                 f'</div>')
     changelog_html = "\n".join(_cl_row(e) for e in _cl_entries) if _cl_entries else \
