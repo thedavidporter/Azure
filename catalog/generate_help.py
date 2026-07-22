@@ -586,6 +586,8 @@ _QA_DEMOS = {
     "How do I check overall storage usage across the data lake?": "storage",
     "How do I export security group members to Excel?": "sgexcel",
     "How do I open a dataset's schema directly in the Synapse Metadata Report?": "cataloglink",
+    "How do I see what Azure is costing us this month?": "",
+    "What savings opportunities exist in our Azure subscriptions?": "",
 }
 
 
@@ -1180,6 +1182,41 @@ def build_html(generated):
         "analyst"
     )
 
+    q_and_a += qa(
+        "How do I see what Azure is costing us this month?",
+        """<p>Open the <strong>Executive Cost Report</strong> from the Marketplace index (Azure Cost Management category).</p>
+<ul>
+  <li>The top three scorecards show <strong>ECAE IDOH Production MTD</strong>, <strong>ECAE Shared Production MTD</strong>, and a <strong>combined total with projected month-end</strong> based on current daily burn rate.</li>
+  <li>A percentage change vs. the prior month is shown under each scorecard — green means spend is tracking lower, red means it is running higher than last month.</li>
+  <li>The <strong>Spend by Business Category</strong> section shows a horizontal bar for each category (Compute &amp; Virtual Desktop, Analytics &amp; Warehousing, Developer Platforms, etc.) with a per-subscription breakdown so you can see which environment is driving each cost.</li>
+  <li>The <strong>Monthly Trend</strong> chart shows the last 6 months of actual spend for IDOH, Shared, and the combined total as a line chart.</li>
+</ul>
+<p class="tip">The report pulls live data from the Azure Cost Management API each time it is regenerated. The gen-ts timestamp at the top shows when the data was last fetched.</p>""",
+        "exec"
+    )
+
+    q_and_a += qa(
+        "What savings opportunities exist in our Azure subscriptions?",
+        """<p>Open the <strong>Executive Cost Report</strong> and scroll to the <strong>Savings Opportunities</strong> table.</p>
+<p>The table lists every identified opportunity ranked by estimated monthly impact, with:</p>
+<ul>
+  <li><strong>Current Spend</strong> — what is being paid today on-demand</li>
+  <li><strong>Est. Savings</strong> — monthly and annual saving if the action is taken</li>
+  <li><strong>Action Required</strong> — specific step to capture the saving (e.g. purchase 1-year Reserved Instance)</li>
+  <li><strong>Effort</strong> — Low / Medium / High effort classification</li>
+</ul>
+<p>Current top opportunities (as of last refresh):</p>
+<ol>
+  <li><strong>Reserved Instances — AVD Session Hosts (Shared)</strong> — FSv2 Windows hosts running on-demand; ~35% RI savings available</li>
+  <li><strong>Databricks Compute Savings Plan (IDOH)</strong> — all Databricks spend is on-demand; ~20% savings plan available</li>
+  <li><strong>Azure Firewall Commitment Pricing (Shared)</strong> — no commitment applied; ~20% savings available</li>
+  <li><strong>Log Analytics Commitment Tier</strong> — high ingestion volume across both subscriptions; ~30% commitment tier savings</li>
+</ol>
+<p>The banner above the table also calls out the total monthly and annual saving if all opportunities are acted on, expressed as a percentage of current combined spend.</p>
+<p class="tip">All savings estimates use published Azure discount rates. Actual savings vary by term, payment option, and utilization. Coordinate Reserved Instance purchases with Finance as they require upfront or monthly commitment.</p>""",
+        "exec"
+    )
+
     # read spinner names
     try:
         with open(SPINNER_NAMES_PATH, encoding="utf-8") as _f:
@@ -1403,6 +1440,16 @@ def build_html(generated):
       </div>
     </div>
 
+    <div class="report-card">
+      <div class="report-card-cat">&#128176; Azure Cost Management</div>
+      <h4>Executive Cost Report</h4>
+      <p>Month-to-date spend, projected month-end total, and 6-month trend across <strong>ECAE IDOH Production</strong> and <strong>ECAE Shared Production</strong>. Spend is grouped into plain-English business categories (Compute &amp; Virtual Desktop, Analytics &amp; Warehousing, etc.) rather than raw Azure service names. Includes a prioritized savings opportunities table with estimated monthly and annual impact, active Reserved Instance status, and flagged items requiring attention (on-demand clusters, no-RI coverage, elevated Defender costs).</p>
+      <div class="tags">
+        <span class="tag tag-all">ALL ENVS</span>
+        <span class="tag tag-link"><a href="azure_cost_report.html">Open &#8599;</a></span>
+      </div>
+    </div>
+
   </div>
 
   <!-- QUICK START -->
@@ -1410,6 +1457,7 @@ def build_html(generated):
 
   <h3>&#127775; Executive / Director</h3>
   <ul>
+    <li><strong>Azure spend &amp; savings</strong>: Executive Cost Report → MTD scorecards, projected month-end, category breakdown, and ranked savings opportunities with dollar impact.</li>
     <li><strong>Data asset inventory</strong>: Synapse Metadata Report → stat cards show total tables, views, procs, and columns at a glance.</li>
     <li><strong>What changed this week</strong>: Synapse Delta Report → purple pursue cards summarize additions, removals, and modifications.</li>
     <li><strong>Pipeline health</strong>: ADF Metadata Report → Monitor tab for 7-day run history and failure counts.</li>
