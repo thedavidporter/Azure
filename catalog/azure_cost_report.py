@@ -12,6 +12,7 @@ from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from collections import defaultdict
 import requests
+from resilient import resilient_post, AZURE_POLICY
 
 EASTERN = ZoneInfo("America/New_York")
 OUTPUT  = "/home/thedavidporter/azure_cost_report.html"
@@ -132,43 +133,27 @@ def get_token():
     return r.stdout.strip()
 
 
-def cm_query(token, sub_id, payload, tag_filter=None, _retries=4):
+def cm_query(token, sub_id, payload, tag_filter=None):
     if tag_filter:
         payload = json.loads(json.dumps(payload))  # deep copy
         payload["dataSet"]["filter"] = tag_filter
     url = (f"https://management.azure.com/subscriptions/{sub_id}"
            f"/providers/Microsoft.CostManagement/query?api-version=2023-11-01")
-    for attempt in range(_retries):
-        try:
-            r = requests.post(
-                url,
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json=payload,
-                timeout=90
-            )
-            d = r.json()
-        except Exception as e:
-            wait = 3 * (attempt + 1)
-            print(f"  WARN: connection error for {sub_id[:8]} (attempt {attempt+1}): {e} — retrying in {wait}s", file=sys.stderr)
-            time.sleep(wait)
-            continue
-        err = d.get("error", {})
-        if err.get("code") == "429" or (
-            err.get("code") == "RBACAccessDenied"
-            and "NoHttpContext" in err.get("message", "")
-        ):
-            wait = 5 * (attempt + 1)
-            print(f"  transient error ({err.get('code')}) — retrying in {wait}s...", file=sys.stderr)
-            time.sleep(wait)
-            continue
-        if err:
-            print(f"  WARN: API error for {sub_id[:8]}: {err}", file=sys.stderr)
-            return []
-        rows = d.get("properties", {}).get("rows", [])
-        cols = [c["name"] for c in d.get("properties", {}).get("columns", [])]
-        return [dict(zip(cols, row)) for row in rows]
-    print(f"  WARN: gave up after {_retries} retries for {sub_id[:8]}", file=sys.stderr)
-    return []
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    try:
+        resp = resilient_post(url, policy=AZURE_POLICY,
+                              label=f"cm/{sub_id[:8]}", headers=headers, json=payload)
+        d = resp.json()
+    except Exception as e:
+        print(f"  WARN: cm/{sub_id[:8]}: {e}", file=sys.stderr)
+        return []
+    err = d.get("error", {})
+    if err:
+        print(f"  WARN: cm/{sub_id[:8]}: {err}", file=sys.stderr)
+        return []
+    rows = d.get("properties", {}).get("rows", [])
+    cols = [c["name"] for c in d.get("properties", {}).get("columns", [])]
+    return [dict(zip(cols, row)) for row in rows]
 
 
 def fetch_mtd(token, sub_id, tag_filter=None):

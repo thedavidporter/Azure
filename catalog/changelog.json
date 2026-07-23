@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-07-23",
+    "time": "9:00 AM",
+    "name": "Eliminate Scrolling Motion on Help Page",
+    "description": "Instead of ainmated scrolling between topics on help page, the page jumps to each topic.",
+    "url": "help.html"
+  },  
+  {
     "date": "2026-07-22",
     "time": "9:00 AM",
     "name": "Executive Azure Cost Report",
