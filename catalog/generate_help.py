@@ -363,7 +363,7 @@ const _sbItems = document.querySelectorAll('.sb-item[data-target]');
 function navTo(id){
   const el = document.getElementById(id);
   if(!el) return;
-  el.scrollIntoView({behavior:'smooth'});
+  el.scrollIntoView({behavior:'instant'});
   _sbItems.forEach(i => i.classList.toggle('active', i.dataset.target === id));
 }
 
