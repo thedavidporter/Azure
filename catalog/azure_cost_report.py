@@ -57,6 +57,21 @@ def _vm_purpose(service_tier: str, meter: str = "") -> str:
     return "—"
 
 
+def _cat_shades(hex_color: str, n: int) -> list:
+    """Return n harmonically related shades of hex_color, base → 50% lighter."""
+    if n <= 1:
+        return [hex_color]
+    r0, g0, b0 = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+    out = []
+    for i in range(n):
+        t = i / (n - 1) * 0.50
+        r = min(255, int(r0 + (255 - r0) * t))
+        g = min(255, int(g0 + (255 - g0) * t))
+        b = min(255, int(b0 + (255 - b0) * t))
+        out.append(f"#{r:02x}{g:02x}{b:02x}")
+    return out
+
+
 CATEGORY_MAP = {
     "Virtual Machines":              "Compute & Virtual Desktop",
     "Azure Kubernetes Service":      "Compute & Virtual Desktop",
@@ -549,7 +564,13 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
         return (f'<span style="color:{css}">{arrow} {abs(pct):.0f}% vs June</span> '
                 f'<span class="proj-note">(projected ${proj:,.0f})</span>')
 
-    # ── category bars ──────────────────────────────────────────────────────────
+    # ── category bars (segmented by service) ─────────────────────────────────
+    # Build service-level costs by category across both subs
+    svc_by_cat = defaultdict(lambda: defaultdict(float))
+    for sid in [IDOH_ID, SHARED_ID]:
+        for svc, svc_cost in sd[sid]["service_total"].items():
+            svc_by_cat[CATEGORY_MAP.get(svc, "Other")][svc] += svc_cost
+
     sorted_cats = sorted(combined_cats.items(), key=lambda x: -x[1])
     cat_max     = sorted_cats[0][1] if sorted_cats else 1
     cat_bars_html = ""
@@ -559,23 +580,45 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
         pct   = cost / combined_total * 100 if combined_total else 0
         w_pct = cost / cat_max * 100
         color = CAT_COLOR.get(cat, CAT_COLOR["Other"])
-        idoh_cat   = sd[IDOH_ID]["cat_total"].get(cat, 0)
-        shared_cat = sd[SHARED_ID]["cat_total"].get(cat, 0)
-        sub_bits = []
-        if idoh_cat > 0:
-            sub_bits.append(f'<span style="color:#38bdf8">IDOH ${idoh_cat:,.0f}</span>')
-        if shared_cat > 0:
-            sub_bits.append(f'<span style="color:#a78bfa">Shared ${shared_cat:,.0f}</span>')
-        sub_detail = " &nbsp;·&nbsp; ".join(sub_bits)
+
+        # Build service segments sorted largest first
+        svcs = sorted(
+            [(s, c) for s, c in svc_by_cat.get(cat, {}).items() if c >= 1],
+            key=lambda x: -x[1]
+        )
+        shades = _cat_shades(color, len(svcs))
+
+        segs_html = ""
+        n_segs = len(svcs)
+        for idx, (svc, svc_cost) in enumerate(svcs):
+            seg_w    = svc_cost / cost * w_pct   # width as % of full track
+            seg_pct  = svc_cost / cost * 100
+            idoh_s   = sd[IDOH_ID]["service_total"].get(svc, 0)
+            shared_s = sd[SHARED_ID]["service_total"].get(svc, 0)
+
+            # Border-radius: round the exposed outer corners only
+            if n_segs == 1:
+                br = "border-radius:4px"
+            elif idx == 0:
+                br = "border-radius:4px 1px 1px 4px"
+            elif idx == n_segs - 1:
+                br = "border-radius:1px 4px 4px 1px"
+            else:
+                br = "border-radius:1px"
+
+            segs_html += (
+                f'<div class="cat-seg" style="width:{seg_w:.2f}%;background:{shades[idx]};{br}"'
+                f' data-svc="{esc(svc)}" data-cost="{svc_cost:.0f}"'
+                f' data-pct="{seg_pct:.1f}" data-cat="{esc(cat)}"'
+                f' data-idoh="{idoh_s:.0f}" data-sh="{shared_s:.0f}"></div>'
+            )
+
         cat_bars_html += f"""
         <div class="cat-row">
           <div class="cat-label">{esc(cat)}</div>
-          <div class="cat-bar-wrap">
-            <div class="cat-bar" style="width:{w_pct:.1f}%;background:{color}"></div>
-          </div>
+          <div class="cat-bar-wrap">{segs_html}</div>
           <div class="cat-right">
             <div class="cat-amount">${cost:,.0f} <span class="cat-pct">{pct:.0f}%</span></div>
-            <div class="cat-sub">{sub_detail}</div>
           </div>
         </div>"""
 
@@ -692,12 +735,19 @@ a:hover{{text-decoration:underline}}
 .cat-row{{display:grid;grid-template-columns:210px 1fr 190px;gap:10px;align-items:center;margin-bottom:9px}}
 @media(max-width:700px){{.cat-row{{grid-template-columns:1fr;gap:4px}}}}
 .cat-label{{font-size:12px;font-weight:600;text-align:right;padding-right:10px;white-space:nowrap}}
-.cat-bar-wrap{{background:var(--sur2);border-radius:4px;height:20px;overflow:hidden}}
-.cat-bar{{height:100%;border-radius:4px}}
+.cat-bar-wrap{{background:var(--sur2);border-radius:4px;height:20px;overflow:visible;display:flex;gap:2px;position:relative}}
+.cat-seg{{height:100%;cursor:default;transition:filter .12s;flex-shrink:0}}
+.cat-seg:hover{{filter:brightness(1.28)}}
 .cat-right{{}}
 .cat-amount{{font-size:12px;font-weight:700}}
 .cat-pct{{font-size:10px;color:var(--mut);font-weight:400;margin-left:4px}}
-.cat-sub{{font-size:10px;color:var(--mut);margin-top:1px}}
+/* segment tooltip */
+#seg-tip{{display:none;position:fixed;background:var(--sur);border:1px solid var(--brd);
+  border-radius:8px;padding:9px 13px;font-size:11px;color:var(--txt);z-index:999;
+  pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.55);max-width:260px;line-height:1.65}}
+#seg-tip strong{{color:var(--txt);font-size:12px}}
+#seg-tip .tip-pct{{color:var(--mut)}}
+#seg-tip .tip-sub{{margin-top:4px;font-size:10px}}
 
 /* chart */
 .chart-wrap{{background:var(--sur);border:1px solid var(--brd);border-radius:10px;padding:20px;position:relative;height:320px}}
@@ -1029,6 +1079,52 @@ document.addEventListener('keydown', e => {{
 }})();
 </script>
 
+<!-- ── Segment tooltip ── -->
+<div id="seg-tip"></div>
+<script>
+(function(){{
+  const tip = document.getElementById('seg-tip');
+  const fmt = v => '$' + Math.round(v).toLocaleString();
+
+  document.querySelectorAll('.cat-seg').forEach(el => {{
+    el.addEventListener('mouseenter', () => {{
+      const svc    = el.dataset.svc;
+      const cost   = parseFloat(el.dataset.cost);
+      const pct    = el.dataset.pct;
+      const cat    = el.dataset.cat;
+      const idoh   = parseFloat(el.dataset.idoh  || 0);
+      const sh     = parseFloat(el.dataset.sh    || 0);
+
+      let html = `<strong>${{svc}}</strong><br>`
+               + `${{fmt(cost)}} <span class="tip-pct">· ${{pct}}% of ${{cat}}</span>`;
+
+      if (idoh > 0 && sh > 0) {{
+        html += `<div class="tip-sub">`
+              + `<span style="color:#38bdf8">IDOH ${{fmt(idoh)}}</span>`
+              + ` &nbsp;·&nbsp; `
+              + `<span style="color:#a78bfa">Shared ${{fmt(sh)}}</span>`
+              + `</div>`;
+      }}
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+    }});
+
+    el.addEventListener('mousemove', e => {{
+      const tw = tip.offsetWidth;
+      const th = tip.offsetHeight;
+      let x = e.clientX + 14;
+      let y = e.clientY - th - 10;
+      if (x + tw > window.innerWidth - 8) x = e.clientX - tw - 14;
+      if (y < 8) y = e.clientY + 14;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+    }});
+
+    el.addEventListener('mouseleave', () => {{ tip.style.display = 'none'; }});
+  }});
+}})();
+</script>
+
 </body>
 </html>"""
 
@@ -1047,15 +1143,16 @@ def main():
     token = get_token()
     print("  OK", flush=True)
 
-    print("Querying Cost Management API (6 parallel calls)...", flush=True)
+    print("Querying Cost Management API (3+3 parallel calls)...", flush=True)
     futures = {}
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        futures[ex.submit(fetch_mtd,       token, IDOH_ID)]                          = ("mtd",   IDOH_ID)
-        futures[ex.submit(fetch_last_month, token, IDOH_ID)]                          = ("last",  IDOH_ID)
-        futures[ex.submit(fetch_trend,     token, IDOH_ID)]                          = ("trend", IDOH_ID)
-        futures[ex.submit(fetch_mtd,       token, SHARED_ID, SHARED_TAG_FILTER)]     = ("mtd",   SHARED_ID)
-        futures[ex.submit(fetch_last_month, token, SHARED_ID, SHARED_TAG_FILTER)]    = ("last",  SHARED_ID)
-        futures[ex.submit(fetch_trend,     token, SHARED_ID, 6, SHARED_TAG_FILTER)]  = ("trend", SHARED_ID)
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures[ex.submit(fetch_mtd,        token, IDOH_ID)]   = ("mtd",   IDOH_ID)
+        futures[ex.submit(fetch_last_month,  token, IDOH_ID)]   = ("last",  IDOH_ID)
+        futures[ex.submit(fetch_trend,       token, IDOH_ID)]   = ("trend", IDOH_ID)
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures[ex.submit(fetch_mtd,        token, SHARED_ID, SHARED_TAG_FILTER)]    = ("mtd",   SHARED_ID)
+        futures[ex.submit(fetch_last_month,  token, SHARED_ID, SHARED_TAG_FILTER)]   = ("last",  SHARED_ID)
+        futures[ex.submit(fetch_trend,       token, SHARED_ID, 6, SHARED_TAG_FILTER)]= ("trend", SHARED_ID)
 
     raw = {"mtd": {}, "last": {}, "trend": {}}
     for fut in as_completed(futures):
