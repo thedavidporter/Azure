@@ -1457,41 +1457,54 @@ def build_html(generated):
 
   <h3>&#127775; Executive / Director</h3>
   <ul>
-    <li><strong>Azure spend &amp; savings</strong>: Executive Cost Report → MTD scorecards, projected month-end, category breakdown, and ranked savings opportunities with dollar impact.</li>
-    <li><strong>Data asset inventory</strong>: Synapse Metadata Report → stat cards show total tables, views, procs, and columns at a glance.</li>
-    <li><strong>What changed this week</strong>: Synapse Delta Report → purple pursue cards summarize additions, removals, and modifications.</li>
-    <li><strong>Pipeline health</strong>: ADF Metadata Report → Monitor tab for 7-day run history and failure counts.</li>
-    <li><strong>Security posture</strong>: VNet Metadata Report → risk indicators highlight open NSG rules and missing private endpoints.</li>
-    <li><strong>Report freshness</strong>: index page → every card shows the last-refresh timestamp in green (current) or yellow (stale).</li>
+    <li><strong>Azure spend &amp; savings</strong>: Executive Cost Report → MTD scorecards, projected month-end, spend by business category, and ranked savings opportunities with dollar impact; click ⓘ Details on any opportunity row for meter-level breakdown.</li>
+    <li><strong>Health program data inventory</strong>: IDOH Data Catalog → 34 health datasets with source system, ingestion cadence, data steward, and status (Verified / In Review / Needs Steward).</li>
+    <li><strong>Data asset counts</strong>: Synapse Metadata Report → stat cards show total tables, views, stored procedures, and columns at a glance.</li>
+    <li><strong>What changed this week</strong>: Synapse Delta Report → pursue cards summarize additions, removals, and modifications day over day.</li>
+    <li><strong>Pipeline health</strong>: ADF Metadata Report → Monitor tab → 7-day run history with failure counts and direct links to failed runs.</li>
+    <li><strong>Security &amp; access posture</strong>: Azure Security Groups &amp; Access Report → group memberships, Databricks workspace access, and users added directly without an Azure group.</li>
+    <li><strong>Network risk</strong>: VNet Metadata Report → risk indicators highlight open NSG rules and missing private endpoints.</li>
+    <li><strong>Virtual desktop fleet</strong>: AVD Session Host Inventory → host pool count, session host status, and pool-level details across DEV and PRD.</li>
+    <li><strong>Report freshness</strong>: index page → every card shows the last-refresh timestamp in green (current) or yellow (stale &gt; 25 hours).</li>
   </ul>
 
   <h3>&#128203; Data Management</h3>
   <ul>
-    <li><strong>Schema inventory by layer</strong>: Synapse or SQL DW Metadata Report → Overview tab → layer pills filter by SM / DM / Reporting.</li>
-    <li><strong>Object change tracking</strong>: Synapse Delta Report → track what was added, removed, or modified day over day.</li>
+    <li><strong>Dataset registry &amp; stewardship</strong>: IDOH Data Catalog → browse all 34 health datasets by program; each entry shows source system, schema, ingestion cadence, steward, and status; click a schema pill to open the Synapse report filtered directly to that schema.</li>
+    <li><strong>Schema inventory by layer</strong>: Synapse or SQL DW Metadata Report → Overview tab → layer pills filter by SM_ / DM_ / Reporting_.</li>
+    <li><strong>Object change tracking</strong>: Synapse Delta Report → track what was added, removed, or modified day over day across DEV and PRD.</li>
     <li><strong>Data promotion (DEV → PRD)</strong>: compare DEV and PRD Synapse Metadata Reports side-by-side, or check the PRD Delta Report for recent additions.</li>
-    <li><strong>Storage usage</strong>: ADLS Gen2 Metadata Report → container-level file counts and sizes.</li>
-    <li><strong>Secret expiry audit</strong>: Key Vault Metadata Report → filter by expiry date.</li>
+    <li><strong>Storage usage</strong>: ADLS Gen2 Metadata Report → container-level file counts, directory structure, and sizes.</li>
+    <li><strong>Secret &amp; credential expiry</strong>: Key Vault Metadata Report → filter by expiry date to catch credentials nearing rotation deadlines across DEV and PRD vaults.</li>
+    <li><strong>Access audit</strong>: Azure Security Groups &amp; Access Report → see every group's members, role assignments, and which users access Databricks workspaces directly without a group; export any group to Excel.</li>
+    <li><strong>Virtual desktop inventory</strong>: AVD Session Host Inventory → 142 host pools across Shared Production; pool-level counts and session host states.</li>
   </ul>
 
   <h3>&#128200; Business Analyst</h3>
   <ul>
-    <li><strong>Find a column across all tables</strong>: Synapse or SQL DW Metadata Report → Columns tab → type any part of the column name.</li>
-    <li><strong>Understand a view</strong>: Synapse Metadata Report → Views tab → click a view → Show / Hide Definition shows code + plain-English explanation.</li>
+    <li><strong>Find a health dataset</strong>: IDOH Data Catalog → search by program name (e.g. CHIRP, ESSENCE, REDCap) → each card shows source system, Synapse schema, cadence, and steward; click the schema pill to jump directly into the Synapse report filtered to that schema.</li>
+    <li><strong>Find a column across all tables</strong>: Synapse or SQL DW Metadata Report → Columns tab → type any part of the column name to filter across all schemas at once.</li>
+    <li><strong>Understand a view</strong>: Synapse Metadata Report → Views tab → click a view → Show / Hide Definition shows the SQL definition.</li>
     <li><strong>Find where a dataset lives</strong>: check the Layer column — SM_ = source/staging, DM_ = data mart, Reporting_ = final reporting layer.</li>
     <li><strong>Row counts</strong>: Synapse or SQL DW Metadata Report → Tables tab → Row Count column shows live distribution-level counts.</li>
-    <li><strong>ACE-sourced columns</strong>: Columns tab → search <code>ACE_</code> to find all ACE-prefixed fields.</li>
+    <li><strong>ACE-sourced columns</strong>: Columns tab → search <code>ACE_</code> to find all columns migrated from the legacy ACE warehouse.</li>
+    <li><strong>Workflow &amp; automation status</strong>: Logic Apps Metadata Report → see active workflows, trigger types, and recent run success/failure history.</li>
   </ul>
 
   <h3>&#9881;&#65039; Data Engineer</h3>
   <ul>
-    <li><strong>Pipeline call hierarchy</strong>: ADF Metadata Report → Hierarchy tab shows full trigger → master → child tree.</li>
-    <li><strong>Table distribution &amp; index type</strong>: SQL DW Metadata Report → Tables tab.</li>
-    <li><strong>Foreign keys &amp; dependencies</strong>: Synapse Metadata Report → Foreign Keys and Dependencies tabs — essential before dropping or renaming objects.</li>
-    <li><strong>Linked services &amp; datasets</strong>: ADF Metadata Report → Linked Services and Datasets cards.</li>
-    <li><strong>Databricks cluster/job state</strong>: Databricks Metadata Report.</li>
-    <li><strong>Branch hygiene</strong>: DevOps Metadata Report → Branches section → stale branches flagged.</li>
-    <li><strong>Logic App run failures</strong>: Logic Apps Metadata Report → run history with failure highlights.</li>
+    <li><strong>Pipeline call hierarchy</strong>: ADF Metadata Report → Hierarchy tab → full trigger → master → child pipeline tree; Monitor tab → 7-day run history with status and duration.</li>
+    <li><strong>Linked services, datasets &amp; data flows</strong>: ADF Metadata Report → Linked Services, Datasets, and Data Flows cards show every connection and transformation definition.</li>
+    <li><strong>Foreign keys &amp; dependencies</strong>: Synapse Metadata Report → Foreign Keys and Dependencies tabs — check before dropping or renaming objects.</li>
+    <li><strong>Table distribution &amp; index type</strong>: SQL DW Metadata Report → Tables tab → distribution key, index type (CCI / HEAP), and row count.</li>
+    <li><strong>Databricks clusters, jobs &amp; notebooks</strong>: Databricks Metadata Report → cluster state, runtime version, auto-termination settings, job schedules, and notebook inventory across IZ-DEV, DEV, and PRD workspaces.</li>
+    <li><strong>Storage structure</strong>: ADLS Gen2 Metadata Report → container and directory layout, file counts, and sizes across all storage accounts.</li>
+    <li><strong>Network &amp; endpoints</strong>: VNet Metadata Report → subnet config, NSG rules, private endpoints, and peering topology; flags rules with broad internet exposure.</li>
+    <li><strong>Secret management</strong>: Key Vault Metadata Report → secret names, expiry dates, and access policies across DEV and PRD vaults.</li>
+    <li><strong>Databricks &amp; group access</strong>: Azure Security Groups &amp; Access Report → see which Azure groups hold role assignments on each Databricks workspace; Databricks Direct view shows users added to workspaces without a group (IZ-DEV, DEV, PRD); export any group to Excel.</li>
+    <li><strong>Source control &amp; CI/CD</strong>: DevOps Metadata Report → repo list, branch staleness, open PRs, build pipeline status, and deployment environments.</li>
+    <li><strong>Logic App run failures</strong>: Logic Apps Metadata Report → workflow run history with failure highlights across DEV and PRD.</li>
+    <li><strong>Virtual desktop fleet</strong>: AVD Session Host Inventory → session host status and pool configuration across the 142 AVD host pools in Shared Production.</li>
   </ul>
 
   <!-- Q&A -->

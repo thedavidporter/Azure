@@ -3,7 +3,7 @@
     "date": "2026-07-22",
     "time": "9:00 AM",
     "name": "Executive Azure Cost Report",
-    "description": "New report covering month-to-date spend, projected month-end, 6-month trend, and savings opportunities across ECAE IDOH Production and ECAE Shared Production.",
+    "description": "New report covering month-to-date spend, projected month-end, 6-month trend, and savings opportunities across ECAE IDOH Production and ECAE Shared Production subscriptions.",
     "url": "azure_cost_report.html"
   },
   {
