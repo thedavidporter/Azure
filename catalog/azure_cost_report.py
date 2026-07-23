@@ -7,9 +7,9 @@ import json
 import subprocess
 import sys
 import calendar
+import time
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 import requests
 
@@ -132,8 +132,7 @@ def get_token():
     return r.stdout.strip()
 
 
-def cm_query(token, sub_id, payload, tag_filter=None, _retries=3):
-    import time
+def cm_query(token, sub_id, payload, tag_filter=None, _retries=4):
     if tag_filter:
         payload = json.loads(json.dumps(payload))  # deep copy
         payload["dataSet"]["filter"] = tag_filter
@@ -145,16 +144,21 @@ def cm_query(token, sub_id, payload, tag_filter=None, _retries=3):
                 url,
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 json=payload,
-                timeout=60
+                timeout=90
             )
             d = r.json()
         except Exception as e:
-            print(f"  WARN: API call failed for {sub_id[:8]}: {e}", file=sys.stderr)
-            return []
+            wait = 3 * (attempt + 1)
+            print(f"  WARN: connection error for {sub_id[:8]} (attempt {attempt+1}): {e} — retrying in {wait}s", file=sys.stderr)
+            time.sleep(wait)
+            continue
         err = d.get("error", {})
-        if err.get("code") == "429":
-            wait = 4 ** attempt
-            print(f"  429 rate limit — retrying in {wait}s...", file=sys.stderr)
+        if err.get("code") == "429" or (
+            err.get("code") == "RBACAccessDenied"
+            and "NoHttpContext" in err.get("message", "")
+        ):
+            wait = 5 * (attempt + 1)
+            print(f"  transient error ({err.get('code')}) — retrying in {wait}s...", file=sys.stderr)
             time.sleep(wait)
             continue
         if err:
@@ -313,9 +317,10 @@ def build_trend_data(raw, months=6):
     shared_d = raw.get(SHARED_ID, {})
     if isinstance(idoh_d,   list): idoh_d   = {}
     if isinstance(shared_d, list): shared_d = {}
-    idoh_vals   = [round(idoh_d.get(lbl,   0)) for lbl in labels]
-    shared_vals = [round(shared_d.get(lbl, 0)) for lbl in labels]
-    return display, idoh_vals, shared_vals
+    idoh_vals    = [round(idoh_d.get(lbl,   0)) for lbl in labels]
+    shared_vals  = [round(shared_d.get(lbl, 0)) for lbl in labels]
+    combined_vals = [i + s for i, s in zip(idoh_vals, shared_vals)]
+    return display, idoh_vals, shared_vals, combined_vals
 
 
 def compute_opportunities(sd):
@@ -539,7 +544,7 @@ def esc(s):
 def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
                sd, combined_cats, combined_total, combined_last,
                projected, opportunities, opp_details, flags,
-               trend_labels, trend_idoh, trend_shared):
+               trend_labels, trend_idoh, trend_shared, trend_combined):
 
     idoh_total   = sd[IDOH_ID]["grand_total"]
     shared_total = sd[SHARED_ID]["grand_total"]
@@ -683,6 +688,7 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
     tl_js = json.dumps(trend_labels)
     ti_js = json.dumps(trend_idoh)
     ts_js = json.dumps(trend_shared)
+    tc_js = json.dumps(trend_combined)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -997,10 +1003,11 @@ document.addEventListener('keydown', e => {{
 
 <script>
 (function(){{
-  const ctx    = document.getElementById('trendChart');
-  const labels = {tl_js};
-  const idoh   = {ti_js};
-  const shared = {ts_js};
+  const ctx      = document.getElementById('trendChart');
+  const labels   = {tl_js};
+  const idoh     = {ti_js};
+  const shared   = {ts_js};
+  const combined = {tc_js};
 
   new Chart(ctx, {{
     type: 'line',
@@ -1027,6 +1034,18 @@ document.addEventListener('keydown', e => {{
           pointRadius: 5,
           pointHoverRadius: 7,
           fill: true,
+          tension: 0.35,
+        }},
+        {{
+          label: 'Combined',
+          data: combined,
+          borderColor: '#4ade80',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
           tension: 0.35,
         }},
       ]
@@ -1143,26 +1162,28 @@ def main():
     token = get_token()
     print("  OK", flush=True)
 
-    print("Querying Cost Management API (3+3 parallel calls)...", flush=True)
-    futures = {}
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        futures[ex.submit(fetch_mtd,        token, IDOH_ID)]   = ("mtd",   IDOH_ID)
-        futures[ex.submit(fetch_last_month,  token, IDOH_ID)]   = ("last",  IDOH_ID)
-        futures[ex.submit(fetch_trend,       token, IDOH_ID)]   = ("trend", IDOH_ID)
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        futures[ex.submit(fetch_mtd,        token, SHARED_ID, SHARED_TAG_FILTER)]    = ("mtd",   SHARED_ID)
-        futures[ex.submit(fetch_last_month,  token, SHARED_ID, SHARED_TAG_FILTER)]   = ("last",  SHARED_ID)
-        futures[ex.submit(fetch_trend,       token, SHARED_ID, 6, SHARED_TAG_FILTER)]= ("trend", SHARED_ID)
-
+    # Azure Cost Management throttles rapid sequential calls to the same subscription
+    # with spurious RBAC errors. Interleave IDOH/Shared and pause 3s between each call.
+    print("Querying Cost Management API (6 calls, interleaved)...", flush=True)
     raw = {"mtd": {}, "last": {}, "trend": {}}
-    for fut in as_completed(futures):
-        kind, sid = futures[fut]
+    call_plan = [
+        ("mtd",   fetch_mtd,        IDOH_ID,   None),
+        ("mtd",   fetch_mtd,        SHARED_ID, SHARED_TAG_FILTER),
+        ("last",  fetch_last_month,  IDOH_ID,   None),
+        ("last",  fetch_last_month,  SHARED_ID, SHARED_TAG_FILTER),
+        ("trend", fetch_trend,       IDOH_ID,   None),
+        ("trend", fetch_trend,       SHARED_ID, SHARED_TAG_FILTER),
+    ]
+    for i, (kind, fn, sid, tag) in enumerate(call_plan):
+        if i > 0:
+            time.sleep(3)
+        label = SUB_SHORT[sid]
         try:
-            result = fut.result()
+            result = fn(token, sid, tag_filter=tag)
             raw[kind][sid] = result
-            print(f"  {kind}/{SUB_SHORT[sid]}: {len(result)} rows", flush=True)
+            print(f"  {kind}/{label}: {len(result)} rows", flush=True)
         except Exception as e:
-            print(f"  WARN: {kind}/{sid[:8]}: {e}", flush=True)
+            print(f"  WARN: {kind}/{label}: {e}", flush=True)
             raw[kind][sid] = []
 
     sd = {}
@@ -1181,12 +1202,13 @@ def main():
 
     opportunities = compute_opportunities(sd)
     flags         = compute_flags(sd, days_elapsed, days_in_mo)
-    trend_labels, trend_idoh, trend_shared = build_trend_data(raw["trend"])
+    trend_labels, trend_idoh, trend_shared, trend_combined = build_trend_data(raw["trend"])
 
-    print("Fetching meter-level detail (2 parallel calls)...", flush=True)
+    print("Fetching meter-level detail...", flush=True)
+    time.sleep(3)
     meters_idoh, meters_shared = [], []
     try:
-        meters_idoh   = fetch_all_meters(token, IDOH_ID)
+        meters_idoh = fetch_all_meters(token, IDOH_ID)
         print(f"  IDOH meters: {len(meters_idoh)} rows", flush=True)
     except Exception as e:
         print(f"  WARN: meters/IDOH: {e}", flush=True)
@@ -1220,9 +1242,10 @@ def main():
         opportunities  = opportunities,
         opp_details    = opp_details,
         flags          = flags,
-        trend_labels   = trend_labels,
-        trend_idoh     = trend_idoh,
-        trend_shared   = trend_shared,
+        trend_labels    = trend_labels,
+        trend_idoh      = trend_idoh,
+        trend_shared    = trend_shared,
+        trend_combined  = trend_combined,
     )
 
     with open(OUTPUT, "w", encoding="utf-8") as f:
