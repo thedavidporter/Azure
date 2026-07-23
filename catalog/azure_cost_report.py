@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 azure_cost_report.py — Executive Azure Cost & Savings Report
-Subscriptions: ECAE IDOH Production + ECAE Shared Production
+Subscription: ECAE IDOH Production
 """
 import json
 import subprocess
@@ -17,13 +17,9 @@ EASTERN = ZoneInfo("America/New_York")
 OUTPUT  = "/home/thedavidporter/azure_cost_report.html"
 
 IDOH_ID   = "57493fde-eff8-432f-8574-4f1281bd2ce3"
-SHARED_ID = "5d3a4b9c-0e31-477c-9122-bb3be662e2a9"
-SUBS = {
-    IDOH_ID:   "ECAE IDOH Production",
-    SHARED_ID: "ECAE Shared Production",
-}
-SUB_SHORT = {IDOH_ID: "IDOH", SHARED_ID: "Shared"}
-SUB_COLOR = {IDOH_ID: "#38bdf8", SHARED_ID: "#a78bfa"}
+SUBS = {IDOH_ID: "ECAE IDOH Production"}
+SUB_SHORT = {IDOH_ID: "IDOH"}
+SUB_COLOR = {IDOH_ID: "#38bdf8"}
 
 # Each entry: (pattern, label). Checked against "meter + service_tier" combined (case-insensitive).
 # Meter-specific patterns (e.g. "D8 v3") must come before broader tier patterns (e.g. "Dv3 Series")
@@ -282,37 +278,20 @@ def build_trend_data(raw, months=6):
         key = f"{yy}-{mm:02d}"
         labels.append(key)
         display.append(f"{MONTH_NAMES[mm-1]} {yy}")
-    idoh_d   = raw.get(IDOH_ID,   {})
-    shared_d = raw.get(SHARED_ID, {})
-    if isinstance(idoh_d,   list): idoh_d   = {}
-    if isinstance(shared_d, list): shared_d = {}
-    idoh_vals   = [round(idoh_d.get(lbl,   0)) for lbl in labels]
-    shared_vals = [round(shared_d.get(lbl, 0)) for lbl in labels]
-    combined    = [i + s for i, s in zip(idoh_vals, shared_vals)]
-    return display, idoh_vals, shared_vals, combined
+    idoh_d = raw.get(IDOH_ID, {})
+    if isinstance(idoh_d, list): idoh_d = {}
+    idoh_vals = [round(idoh_d.get(lbl, 0)) for lbl in labels]
+    return display, idoh_vals
 
 
 def compute_opportunities(sd):
     opps = []
-    idoh_od   = sd[IDOH_ID]["on_demand_svc"]
-    shared_od = sd[SHARED_ID]["on_demand_svc"]
-
-    vm = shared_od.get("Virtual Machines", 0)
-    if vm > 200:
-        opps.append({
-            "opportunity": "Reserved Instances — AVD Session Hosts (Shared)",
-            "details":     "FSv2 Windows hosts running fully on-demand",
-            "current":     vm,
-            "savings":     round(vm * 0.35),
-            "action":      "Purchase 1-year VM Reserved Instances for FSv2/Dv3 Windows",
-            "effort":      "Low",
-            "detail_key":  "vm",
-        })
+    idoh_od = sd[IDOH_ID]["on_demand_svc"]
 
     db = idoh_od.get("Azure Databricks", 0)
     if db > 200:
         opps.append({
-            "opportunity": "Databricks Compute Savings Plan (IDOH)",
+            "opportunity": "Databricks Compute Savings Plan",
             "details":     "All Databricks spend is currently on-demand",
             "current":     db,
             "savings":     round(db * 0.20),
@@ -321,23 +300,11 @@ def compute_opportunities(sd):
             "detail_key":  "db",
         })
 
-    fw = shared_od.get("Azure Firewall", 0)
-    if fw > 200:
-        opps.append({
-            "opportunity": "Azure Firewall — Commitment Pricing (Shared)",
-            "details":     "Firewall running on-demand with no commitment",
-            "current":     fw,
-            "savings":     round(fw * 0.20),
-            "action":      "Switch to Azure Firewall 1-year commitment pricing",
-            "effort":      "Low",
-            "detail_key":  "fw",
-        })
-
-    la_total = (idoh_od.get("Log Analytics", 0) + shared_od.get("Log Analytics", 0))
+    la_total = idoh_od.get("Log Analytics", 0)
     if la_total > 150:
         opps.append({
             "opportunity": "Log Analytics — Commitment Tier",
-            "details":     f"${la_total:,.0f}/mo combined across both subscriptions",
+            "details":     f"${la_total:,.0f}/mo on pay-as-you-go ingestion",
             "current":     la_total,
             "savings":     round(la_total * 0.30),
             "action":      "Switch from Pay-As-You-Go to daily GB commitment tier",
@@ -345,13 +312,13 @@ def compute_opportunities(sd):
             "detail_key":  "la",
         })
 
-    syn_shared = shared_od.get("Azure Synapse Analytics", 0)
-    if syn_shared > 200:
+    syn = idoh_od.get("Azure Synapse Analytics", 0)
+    if syn > 200:
         opps.append({
-            "opportunity": "Synapse Reserved Capacity (Shared)",
-            "details":     "Synapse Dedicated SQL pool running on-demand in Shared",
-            "current":     syn_shared,
-            "savings":     round(syn_shared * 0.37),
+            "opportunity": "Synapse Reserved Capacity",
+            "details":     "Synapse Dedicated SQL pool running on-demand",
+            "current":     syn,
+            "savings":     round(syn * 0.37),
             "action":      "Purchase Synapse Dedicated SQL pool Reserved Capacity (1-year)",
             "effort":      "Low",
             "detail_key":  "syn",
@@ -363,51 +330,21 @@ def compute_opportunities(sd):
 def build_opp_details(detail_raw):
     """Build JSON-serialisable detail dicts for each savings opportunity pop-up."""
 
-    def rows_table(raw_rows, total, sub_label=None):
+    def rows_table(raw_rows, total):
         out = []
         for r in raw_rows:
             cost = float(r.get("Cost", 0) or 0)
             pct  = f"{cost/total*100:.1f}%" if total else "—"
-            row  = [r.get("Meter",""), r.get("ServiceTier",""), f"${cost:,.2f}", pct]
-            if sub_label:
-                row.insert(2, sub_label)
-            out.append(row)
+            out.append([r.get("Meter",""), r.get("ServiceTier",""), f"${cost:,.2f}", pct])
         return out
 
     details = {}
-
-    # ── VM / AVD ──────────────────────────────────────────────────────────────
-    vm_rows = detail_raw.get("vm_shared", [])
-    total_vm = sum(float(r.get("Cost",0) or 0) for r in vm_rows)
-
-    def vm_rows_table(raw_rows, total):
-        out = []
-        for r in raw_rows:
-            cost    = float(r.get("Cost", 0) or 0)
-            pct     = f"{cost/total*100:.1f}%" if total else "—"
-            purpose = _vm_purpose(r.get("ServiceTier", ""), r.get("Meter", ""))
-            out.append([r.get("Meter",""), purpose, r.get("ServiceTier",""), f"${cost:,.2f}", pct])
-        return out
-
-    details["vm"] = {
-        "title":   "VM Meter Breakdown — Shared Subscription",
-        "explain": (
-            "Every VM listed below is billed at full on-demand (pay-as-you-go) rates — "
-            "no Reserved Instances are applied. The <strong>FSv2 Series Windows</strong> rows "
-            "are the AVD session hosts your staff log into as virtual desktops. "
-            "Purchasing 1-year Reserved Instances for those sizes locks in a ~35% lower hourly "
-            "rate. Nothing changes for the VMs or the users — only the billing rate."
-        ),
-        "headers": ["VM Size", "Purpose", "Series / OS", "MTD Cost", "% of VMs"],
-        "rows":    vm_rows_table(vm_rows, total_vm),
-        "note":    f"All {len(vm_rows)} meter lines shown · Total ${total_vm:,.2f} MTD · PricingModel: OnDemand",
-    }
 
     # ── Databricks ────────────────────────────────────────────────────────────
     db_rows = detail_raw.get("db_idoh", [])
     total_db = sum(float(r.get("Cost",0) or 0) for r in db_rows)
     details["db"] = {
-        "title":   "Databricks Meter Breakdown — IDOH Subscription",
+        "title":   "Databricks Meter Breakdown — IDOH Production",
         "explain": (
             "All Databricks compute is billed on-demand (no savings plan applied). "
             "A <strong>1-year Databricks Savings Plan</strong> commits to a fixed $/hour of "
@@ -419,48 +356,40 @@ def build_opp_details(detail_raw):
         "note":    f"All {len(db_rows)} meter lines shown · Total ${total_db:,.2f} MTD · PricingModel: OnDemand",
     }
 
-    # ── Firewall ──────────────────────────────────────────────────────────────
-    fw_rows = detail_raw.get("fw_shared", [])
-    total_fw = sum(float(r.get("Cost",0) or 0) for r in fw_rows)
-    details["fw"] = {
-        "title":   "Azure Firewall Meter Breakdown — Shared Subscription",
-        "explain": (
-            "Azure Firewall charges for two things: <strong>deployment hours</strong> "
-            "(a fixed cost per hour the firewall exists, regardless of traffic) and "
-            "<strong>data processed</strong> (per GB inspected). Commitment pricing applies "
-            "a ~20% discount to the deployment hour component only — data processing stays "
-            "pay-as-you-go. No firewall rules, policies, or traffic routing change."
-        ),
-        "headers": ["Meter", "Service Tier", "MTD Cost", "% of Firewall"],
-        "rows":    rows_table(fw_rows, total_fw),
-        "note":    f"All {len(fw_rows)} meter lines shown · Total ${total_fw:,.2f} MTD · PricingModel: OnDemand",
-    }
-
     # ── Log Analytics ─────────────────────────────────────────────────────────
-    la_idoh   = detail_raw.get("la_idoh",   [])
-    la_shared = detail_raw.get("la_shared", [])
-    total_la  = sum(float(r.get("Cost",0) or 0) for r in la_idoh + la_shared)
-    la_rows   = []
+    la_idoh  = detail_raw.get("la_idoh", [])
+    total_la = sum(float(r.get("Cost",0) or 0) for r in la_idoh)
+    la_rows  = []
     for r in la_idoh:
         cost = float(r.get("Cost",0) or 0)
         pct  = f"{cost/total_la*100:.1f}%" if total_la else "—"
-        la_rows.append([r.get("Meter",""), "IDOH", r.get("ServiceTier",""), f"${cost:,.2f}", pct])
-    for r in la_shared:
-        cost = float(r.get("Cost",0) or 0)
-        pct  = f"{cost/total_la*100:.1f}%" if total_la else "—"
-        la_rows.append([r.get("Meter",""), "Shared", r.get("ServiceTier",""), f"${cost:,.2f}", pct])
-    la_rows.sort(key=lambda x: -float(x[3].replace("$","").replace(",","")))
+        la_rows.append([r.get("Meter",""), r.get("ServiceTier",""), f"${cost:,.2f}", pct])
+    la_rows.sort(key=lambda x: -float(x[2].replace("$","").replace(",","")))
     details["la"] = {
-        "title":   "Log Analytics Meter Breakdown — Both Subscriptions",
+        "title":   "Log Analytics Meter Breakdown — IDOH Production",
         "explain": (
             "Log Analytics charges per GB of data ingested. Above <strong>100 GB/day</strong> "
             "a commitment tier reduces the per-GB price by 25–30% with no changes to what is "
-            "logged, how long it is retained, or how queries run. Each workspace can be switched "
-            "to commitment pricing independently — workspaces in both subscriptions are eligible."
+            "logged, how long it is retained, or how queries run."
         ),
-        "headers": ["Meter", "Subscription", "Service Tier", "MTD Cost", "% of LA Total"],
+        "headers": ["Meter", "Service Tier", "MTD Cost", "% of LA Total"],
         "rows":    la_rows,
         "note":    f"Total ${total_la:,.2f} MTD · PricingModel: OnDemand",
+    }
+
+    # ── Synapse ───────────────────────────────────────────────────────────────
+    syn_rows = detail_raw.get("syn_idoh", [])
+    total_syn = sum(float(r.get("Cost",0) or 0) for r in syn_rows)
+    details["syn"] = {
+        "title":   "Synapse Analytics Meter Breakdown — IDOH Production",
+        "explain": (
+            "Synapse Dedicated SQL pool charges are billed on-demand. "
+            "A <strong>1-year Reserved Capacity</strong> purchase locks in a fixed rate for the "
+            "DWU provisioned and delivers ~37% savings — the pool continues to run unchanged."
+        ),
+        "headers": ["Meter", "Service Tier", "MTD Cost", "% of Synapse"],
+        "rows":    rows_table(syn_rows, total_syn),
+        "note":    f"Total ${total_syn:,.2f} MTD · PricingModel: OnDemand",
     }
 
     return details
@@ -468,10 +397,8 @@ def build_opp_details(detail_raw):
 
 def compute_flags(sd, days_elapsed, days_in_month):
     flags = []
-    idoh_od   = sd[IDOH_ID]["on_demand_svc"]
-    shared_od = sd[SHARED_ID]["on_demand_svc"]
-    idoh_svc  = sd[IDOH_ID]["service_total"]
-    shared_svc= sd[SHARED_ID]["service_total"]
+    idoh_od  = sd[IDOH_ID]["on_demand_svc"]
+    idoh_svc = sd[IDOH_ID]["service_total"]
 
     # GPU cluster in Databricks DEV
     flags.append({
@@ -489,38 +416,27 @@ def compute_flags(sd, days_elapsed, days_in_month):
             "level":  "orange",
             "title":  f"Databricks Entirely On-Demand — ${db:,.0f} MTD",
             "detail": "No savings plan or reserved capacity is applied to Databricks. "
-                      "This is the largest unprotected spend item in the IDOH subscription and "
+                      "This is the largest unprotected spend item and "
                       "a high-priority target for a 1-year savings plan.",
         })
 
-    # Shared VMs no RI
-    vm = shared_od.get("Virtual Machines", 0)
-    if vm > 1000:
-        flags.append({
-            "level":  "orange",
-            "title":  f"AVD Session Hosts Fully On-Demand — ${vm:,.0f} MTD (Shared)",
-            "detail": "All FSv2 Windows virtual machines backing AVD host pools are running "
-                      "on-demand pricing. With 142 host pools in scope, Reserved Instances "
-                      "represent the single largest cost reduction opportunity available.",
-        })
-
     # Defender for Cloud
-    def_shared = shared_svc.get("Microsoft Defender for Cloud", 0)
-    if def_shared > 800:
+    def_cost = idoh_svc.get("Microsoft Defender for Cloud", 0)
+    if def_cost > 200:
         flags.append({
             "level":  "yellow",
-            "title":  f"Microsoft Defender for Cloud — ${def_shared:,.0f} MTD (Shared)",
-            "detail": "ARM service layer charges are elevated. Review whether all Defender "
-                      "plans (Servers, Storage, Containers, Key Vault, DNS, ARM) are required "
-                      "or whether scope can be reduced to critical workloads only.",
+            "title":  f"Microsoft Defender for Cloud — ${def_cost:,.0f} MTD",
+            "detail": "Review whether all Defender plans (Servers, Storage, Containers, "
+                      "Key Vault, DNS, ARM) are required or whether scope can be reduced "
+                      "to critical workloads only.",
         })
 
     # Log Analytics
-    la_shared = shared_svc.get("Log Analytics", 0)
-    if la_shared > 500:
+    la_cost = idoh_svc.get("Log Analytics", 0)
+    if la_cost > 150:
         flags.append({
             "level":  "yellow",
-            "title":  f"Log Analytics Ingestion — ${la_shared:,.0f} MTD (Shared)",
+            "title":  f"Log Analytics Ingestion — ${la_cost:,.0f} MTD",
             "detail": "High ingestion volume detected. Review which data sources are sending "
                       "to Log Analytics, whether data is retained longer than required, and "
                       "whether a commitment tier can reduce per-GB cost.",
@@ -536,15 +452,13 @@ def esc(s):
 
 
 def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
-               sd, combined_cats, combined_total, combined_last,
-               projected, opportunities, opp_details, flags,
-               trend_labels, trend_idoh, trend_shared, trend_combined):
+               sd, projected, opportunities, opp_details, flags,
+               trend_labels, trend_idoh):
 
-    idoh_total   = sd[IDOH_ID]["grand_total"]
-    shared_total = sd[SHARED_ID]["grand_total"]
-    idoh_last    = sd[IDOH_ID]["last_total"]
-    shared_last  = sd[SHARED_ID]["last_total"]
-    month_name   = today.strftime("%B %Y")
+    idoh_total  = sd[IDOH_ID]["grand_total"]
+    idoh_last   = sd[IDOH_ID]["last_total"]
+    idoh_cats   = sd[IDOH_ID]["cat_total"]
+    month_name  = today.strftime("%B %Y")
     billing_period = f"{today.strftime('%B 1')} – {today.strftime('%B %d, %Y')}"
 
     def delta_card(mtd, last):
@@ -564,23 +478,15 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
                 f'<span class="proj-note">(projected ${proj:,.0f})</span>')
 
     # ── category bars ──────────────────────────────────────────────────────────
-    sorted_cats = sorted(combined_cats.items(), key=lambda x: -x[1])
+    sorted_cats = sorted(idoh_cats.items(), key=lambda x: -x[1])
     cat_max     = sorted_cats[0][1] if sorted_cats else 1
     cat_bars_html = ""
     for cat, cost in sorted_cats:
         if cost < 1:
             continue
-        pct   = cost / combined_total * 100 if combined_total else 0
+        pct   = cost / idoh_total * 100 if idoh_total else 0
         w_pct = cost / cat_max * 100
         color = CAT_COLOR.get(cat, CAT_COLOR["Other"])
-        idoh_cat   = sd[IDOH_ID]["cat_total"].get(cat, 0)
-        shared_cat = sd[SHARED_ID]["cat_total"].get(cat, 0)
-        sub_bits = []
-        if idoh_cat > 0:
-            sub_bits.append(f'<span style="color:#38bdf8">IDOH ${idoh_cat:,.0f}</span>')
-        if shared_cat > 0:
-            sub_bits.append(f'<span style="color:#a78bfa">Shared ${shared_cat:,.0f}</span>')
-        sub_detail = " &nbsp;·&nbsp; ".join(sub_bits)
         cat_bars_html += f"""
         <div class="cat-row">
           <div class="cat-label">{esc(cat)}</div>
@@ -589,14 +495,13 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
           </div>
           <div class="cat-right">
             <div class="cat-amount">${cost:,.0f} <span class="cat-pct">{pct:.0f}%</span></div>
-            <div class="cat-sub">{sub_detail}</div>
           </div>
         </div>"""
 
     # ── savings opportunities ──────────────────────────────────────────────────
     total_savings_mo = sum(o["savings"] for o in opportunities)
     total_savings_yr = total_savings_mo * 12
-    pct_of_spend     = (total_savings_mo / combined_total * 100) if combined_total else 0
+    pct_of_spend     = (total_savings_mo / idoh_total * 100) if idoh_total else 0
 
     opp_rows_html = ""
     EFFORT_COLORS = {"Low": ("#14532d","#4ade80"), "Medium": ("#78350f","#fbbf24"), "High": ("#450a0a","#f87171")}
@@ -651,10 +556,8 @@ def build_html(generated, today, days_in_month, days_elapsed, days_remaining,
     opp_details_js = json.dumps(opp_details)
 
     # ── Chart.js JSON ──────────────────────────────────────────────────────────
-    tl_js  = json.dumps(trend_labels)
-    ti_js  = json.dumps(trend_idoh)
-    ts_js  = json.dumps(trend_shared)
-    tc_js  = json.dumps(trend_combined)
+    tl_js = json.dumps(trend_labels)
+    ti_js = json.dumps(trend_idoh)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -687,7 +590,7 @@ a:hover{{text-decoration:underline}}
 .section-title{{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid var(--brd)}}
 
 /* scorecards */
-.scorecards{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}}
+.scorecards{{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:20px}}
 @media(max-width:700px){{.scorecards{{grid-template-columns:1fr}}}}
 .scorecard{{background:var(--sur);border:1px solid var(--brd);border-radius:10px;padding:20px}}
 .sc-label{{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin-bottom:10px}}
@@ -791,7 +694,7 @@ tr:hover td{{background:var(--sur2)}}
   <div>
     <div class="hdr-title">Azure Cost Report</div>
     <div class="hdr-sub">
-      ECAE IDOH Production &nbsp;&middot;&nbsp; ECAE Shared Production &nbsp;&middot;&nbsp; {billing_period}
+      ECAE IDOH Production &nbsp;&middot;&nbsp; {billing_period}
       &nbsp;&mdash;&nbsp; <a class="back-link" href="index.html">&#8592; Marketplace</a>
     </div>
   </div>
@@ -807,23 +710,15 @@ tr:hover td{{background:var(--sur2)}}
   <div class="scorecards">
 
     <div class="scorecard" style="border-top:3px solid #38bdf8">
-      <div class="sc-label">ECAE IDOH Production</div>
+      <div class="sc-label">IDOH Production MTD &mdash; {month_name}</div>
       <div class="sc-amount" style="color:#38bdf8">${idoh_total:,.0f}</div>
       <div class="sc-delta">{delta_card(idoh_total, idoh_last)}</div>
       <div class="sc-note">Month-to-date &middot; {days_elapsed} of {days_in_month} days</div>
     </div>
 
-    <div class="scorecard" style="border-top:3px solid #a78bfa">
-      <div class="sc-label">ECAE Shared Production</div>
-      <div class="sc-amount" style="color:#a78bfa">${shared_total:,.0f}</div>
-      <div class="sc-delta">{delta_card(shared_total, shared_last)}</div>
-      <div class="sc-note">Month-to-date &middot; {days_elapsed} of {days_in_month} days</div>
-    </div>
-
     <div class="scorecard" style="border-top:3px solid #4ade80">
-      <div class="sc-label">Combined &mdash; {month_name}</div>
-      <div class="sc-amount" style="color:#4ade80">${combined_total:,.0f}</div>
-      <div class="proj-big">Projected month-end: ${projected:,.0f}</div>
+      <div class="sc-label">Projected Month-End</div>
+      <div class="sc-amount" style="color:#4ade80">${projected:,.0f}</div>
       <div class="sc-note" style="margin-top:6px">{days_remaining} days remaining in billing period</div>
     </div>
 
@@ -832,12 +727,12 @@ tr:hover td{{background:var(--sur2)}}
   <!-- ── RI / DISCOUNT BANNER ── -->
   <div class="ri-banner">
     {ri_html if ri_html else '<div class="ri-active" style="color:var(--mut)">No active Reserved Instances detected</div>'}
-    <div class="ri-opportunity">&#x26A1; Identified savings: <strong>${total_savings_mo:,.0f}/mo (${total_savings_yr:,.0f}/yr)</strong> — {pct_of_spend:.0f}% of current combined spend &mdash; see Savings Opportunities below</div>
+    <div class="ri-opportunity">&#x26A1; Identified savings: <strong>${total_savings_mo:,.0f}/mo (${total_savings_yr:,.0f}/yr)</strong> — {pct_of_spend:.0f}% of current spend &mdash; see Savings Opportunities below</div>
   </div>
 
   <!-- ── SPEND BY CATEGORY ── -->
   <div class="section">
-    <div class="section-title">Spend by Business Category &mdash; Combined MTD</div>
+    <div class="section-title">Spend by Business Category &mdash; IDOH Production MTD</div>
     {cat_bars_html}
   </div>
 
@@ -878,7 +773,7 @@ tr:hover td{{background:var(--sur2)}}
           <div class="st-amount">${total_savings_yr:,.0f}</div>
         </div>
         <div class="st-item">
-          <div class="st-label">% of Combined Spend</div>
+          <div class="st-label">% of IDOH Spend</div>
           <div class="st-amount">{pct_of_spend:.0f}%</div>
         </div>
       </div>
@@ -962,11 +857,9 @@ document.addEventListener('keydown', e => {{
 
 <script>
 (function(){{
-  const ctx = document.getElementById('trendChart');
-  const labels   = {tl_js};
-  const idoh     = {ti_js};
-  const shared   = {ts_js};
-  const combined = {tc_js};
+  const ctx    = document.getElementById('trendChart');
+  const labels = {tl_js};
+  const idoh   = {ti_js};
 
   new Chart(ctx, {{
     type: 'line',
@@ -977,34 +870,11 @@ document.addEventListener('keydown', e => {{
           label: 'ECAE IDOH Production',
           data: idoh,
           borderColor: '#38bdf8',
-          backgroundColor: 'rgba(56,189,248,0.07)',
+          backgroundColor: 'rgba(56,189,248,0.10)',
           borderWidth: 2,
           pointRadius: 5,
           pointHoverRadius: 7,
           fill: true,
-          tension: 0.35,
-        }},
-        {{
-          label: 'ECAE Shared Production',
-          data: shared,
-          borderColor: '#a78bfa',
-          backgroundColor: 'rgba(167,139,250,0.07)',
-          borderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          fill: true,
-          tension: 0.35,
-        }},
-        {{
-          label: 'Combined',
-          data: combined,
-          borderColor: '#4ade80',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          borderDash: [5, 4],
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          fill: false,
           tension: 0.35,
         }},
       ]
@@ -1075,13 +945,12 @@ def main():
     token = get_token()
     print("  OK", flush=True)
 
-    print("Querying Cost Management API (6 parallel calls)...", flush=True)
+    print("Querying Cost Management API (3 parallel calls)...", flush=True)
     futures = {}
     with ThreadPoolExecutor(max_workers=3) as ex:
-        for sid in [IDOH_ID, SHARED_ID]:
-            futures[ex.submit(fetch_mtd,        token, sid)] = ("mtd",   sid)
-            futures[ex.submit(fetch_last_month,  token, sid)] = ("last",  sid)
-            futures[ex.submit(fetch_trend,       token, sid)] = ("trend", sid)
+        futures[ex.submit(fetch_mtd,        token, IDOH_ID)] = ("mtd",   IDOH_ID)
+        futures[ex.submit(fetch_last_month,  token, IDOH_ID)] = ("last",  IDOH_ID)
+        futures[ex.submit(fetch_trend,       token, IDOH_ID)] = ("trend", IDOH_ID)
 
     raw = {"mtd": {}, "last": {}, "trend": {}}
     for fut in as_completed(futures):
@@ -1094,74 +963,52 @@ def main():
             print(f"  WARN: {kind}/{sid[:8]}: {e}", flush=True)
             raw[kind][sid] = []
 
-    # Process per subscription
-    sd = {}
-    for sid in [IDOH_ID, SHARED_ID]:
-        sd[sid] = process(raw["mtd"].get(sid, []), raw["last"].get(sid, []))
-        print(f"  {SUB_SHORT[sid]} MTD total: ${sd[sid]['grand_total']:,.0f}", flush=True)
+    sd = {IDOH_ID: process(raw["mtd"].get(IDOH_ID, []), raw["last"].get(IDOH_ID, []))}
+    print(f"  IDOH MTD total: ${sd[IDOH_ID]['grand_total']:,.0f}", flush=True)
 
-    # Combined category totals
-    combined_cats = defaultdict(float)
-    for sid in [IDOH_ID, SHARED_ID]:
-        for cat, cost in sd[sid]["cat_total"].items():
-            combined_cats[cat] += cost
-
-    combined_total = sum(s["grand_total"] for s in sd.values())
-    combined_last  = sum(s["last_total"]  for s in sd.values())
-    projected      = combined_total * (days_in_mo / days_elapsed) if days_elapsed else 0
+    idoh_total = sd[IDOH_ID]["grand_total"]
+    projected  = idoh_total * (days_in_mo / days_elapsed) if days_elapsed else 0
 
     opportunities = compute_opportunities(sd)
     flags         = compute_flags(sd, days_elapsed, days_in_mo)
-    trend_labels, trend_idoh, trend_shared, trend_combined = build_trend_data(raw["trend"])
+    trend_labels, trend_idoh = build_trend_data(raw["trend"])
 
-    print("Fetching meter-level detail (2 calls — one per subscription)...", flush=True)
-    meters_idoh, meters_shared = [], []
+    print("Fetching meter-level detail (IDOH only)...", flush=True)
+    meters_idoh = []
     try:
-        meters_idoh   = fetch_all_meters(token, IDOH_ID)
+        meters_idoh = fetch_all_meters(token, IDOH_ID)
         print(f"  IDOH meters: {len(meters_idoh)} rows", flush=True)
     except Exception as e:
         print(f"  WARN: meters/IDOH: {e}", flush=True)
-    try:
-        meters_shared = fetch_all_meters(token, SHARED_ID)
-        print(f"  Shared meters: {len(meters_shared)} rows", flush=True)
-    except Exception as e:
-        print(f"  WARN: meters/Shared: {e}", flush=True)
 
     detail_raw = {
-        "vm_shared": filter_meters(meters_shared, "Virtual Machines"),
-        "db_idoh":   filter_meters(meters_idoh,   "Azure Databricks"),
-        "fw_shared": filter_meters(meters_shared, "Azure Firewall"),
-        "la_idoh":   filter_meters(meters_idoh,   "Log Analytics"),
-        "la_shared": filter_meters(meters_shared, "Log Analytics"),
+        "db_idoh":  filter_meters(meters_idoh, "Azure Databricks"),
+        "la_idoh":  filter_meters(meters_idoh, "Log Analytics"),
+        "syn_idoh": filter_meters(meters_idoh, "Azure Synapse Analytics"),
     }
 
     opp_details = build_opp_details(detail_raw)
 
     print("Building HTML...", flush=True)
     html = build_html(
-        generated       = generated,
-        today           = today,
-        days_in_month   = days_in_mo,
-        days_elapsed    = days_elapsed,
-        days_remaining  = days_remaining,
-        sd              = sd,
-        combined_cats   = dict(combined_cats),
-        combined_total  = combined_total,
-        combined_last   = combined_last,
-        projected       = projected,
-        opportunities   = opportunities,
-        opp_details     = opp_details,
-        flags           = flags,
-        trend_labels    = trend_labels,
-        trend_idoh      = trend_idoh,
-        trend_shared    = trend_shared,
-        trend_combined  = trend_combined,
+        generated      = generated,
+        today          = today,
+        days_in_month  = days_in_mo,
+        days_elapsed   = days_elapsed,
+        days_remaining = days_remaining,
+        sd             = sd,
+        projected      = projected,
+        opportunities  = opportunities,
+        opp_details    = opp_details,
+        flags          = flags,
+        trend_labels   = trend_labels,
+        trend_idoh     = trend_idoh,
     )
 
     with open(OUTPUT, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"Saved: {OUTPUT}", flush=True)
-    print(f"  Combined MTD: ${combined_total:,.0f}  /  Projected: ${projected:,.0f}", flush=True)
+    print(f"  IDOH MTD: ${idoh_total:,.0f}  /  Projected: ${projected:,.0f}", flush=True)
     print(f"  Savings opportunities: ${sum(o['savings'] for o in opportunities):,.0f}/mo identified", flush=True)
 
 
