@@ -17,7 +17,7 @@ The Metadata Marketplace is a daily-automated reporting platform that collects m
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  WSL2 / Debian (Windows Machine — daily cron at 2am)            │
+│  WSL2 / Debian (Windows Machine — daily cron at 2am)             │
 │                                                                  │
 │  publish_synapse_metadata.sh                                     │
 │    │                                                             │
@@ -26,7 +26,7 @@ The Metadata Marketplace is a daily-automated reporting platform that collects m
 │    │                                                             │
 │    └── az storage blob upload  →  Azure Blob Storage ($web)      │
 │                                                                  │
-│  capture_help_screenshots.py  (monthly cron, 1st @ 6am)         │
+│  capture_help_screenshots.py  (monthly cron, 1st @ 6am)          │
 │    └── Playwright/Chromium  →  Azure Blob Storage ($web/         │
 │                                screenshots/)                     │
 └──────────────────────────────────────────────────────────────────┘
