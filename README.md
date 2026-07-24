@@ -180,8 +180,6 @@ All scripts live on the WSL Debian host at `/home/thedavidporter/`.
 ```
 0 9 * * 1-5   publish_synapse_metadata.sh       # daily publish (weekdays, 9am)
 0 7 * * 1-5   adf_pipeline_failure_check.py     # ADF failure check (weekdays, 7am)
-0 8 * * 1-5   teams_keep_active.py              # Teams keepalive (weekdays, 8am)
-0 15 * * 1-5  pkill -f teams_keep_active.py     # stop Teams keepalive (3pm)
 0 6 1 * *     capture_help_screenshots.py        # refresh help.html screenshots (1st of month, 6am)
 ```
 
